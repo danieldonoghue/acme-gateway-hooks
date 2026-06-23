@@ -1,0 +1,7 @@
+upstreams:
+  letsencrypt:
+    directory_url: "https://acme-v02.api.letsencrypt.org/directory"
+    contact_email: "ops@example.com"
+    dns_hook:
+      deploy_script: "/hooks/excedo-dns-deploy"
+      cleanup_script: "/hooks/excedo-dns-cleanup"

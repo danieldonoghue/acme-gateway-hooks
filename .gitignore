@@ -1,0 +1,27 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Editor / IDE
+.vscode/
+.idea/
+
+# Claude local agent config/state
+.claude/
+
+# Go build/test artifacts
+bin/
+dist/
+*.test
+*.out
+coverage.out
+
+# Local environment files
+.env
+.env.*
+!.env.example
+
+# Temporary files
+tmp/
+temp/

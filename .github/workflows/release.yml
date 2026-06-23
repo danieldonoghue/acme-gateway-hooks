@@ -1,0 +1,41 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.26.4'
+          cache: true
+      - name: Build artifacts
+        run: make release-artifacts
+      - name: Login to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push image
+        env:
+          IMAGE: ghcr.io/${{ github.repository_owner }}/acme-gateway-hooks
+          TAG: ${{ github.ref_name }}
+        run: |
+          docker build -t ${IMAGE}:${TAG} -t ${IMAGE}:latest .
+          docker push ${IMAGE}:${TAG}
+          docker push ${IMAGE}:latest
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v3
+        with:
+          files: dist/release/*.tar.gz
+          generate_release_notes: true
