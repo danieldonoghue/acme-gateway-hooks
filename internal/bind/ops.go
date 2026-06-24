@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net"
 	"strings"
 	"time"
 
@@ -71,7 +70,7 @@ func newUpdateMessage(cfg Config, deploy bool) *dns.Msg {
 
 func exchange(ctx context.Context, msg *dns.Msg, cfg Config) (*dns.Msg, error) {
 	client := &dns.Client{
-		Net:     protocolForAddress(cfg.DNSServer),
+		Net:     "udp",
 		Timeout: 10 * time.Second,
 	}
 
@@ -88,17 +87,6 @@ func exchange(ctx context.Context, msg *dns.Msg, cfg Config) (*dns.Msg, error) {
 	}
 
 	return resp, nil
-}
-
-func protocolForAddress(addr string) string {
-	host, _, err := net.SplitHostPort(addr)
-	if err != nil {
-		return "udp"
-	}
-	if strings.Contains(host, ":") {
-		return "udp"
-	}
-	return "udp"
 }
 
 func cleanupRcodeOK(rcode int) bool {

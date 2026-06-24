@@ -20,7 +20,7 @@ Common inputs (all binaries):
 
 BIND / RFC2136 variables:
 - Optional `BIND_DNS_SERVER` (default: `127.0.0.1:53`)
-- Optional `BIND_DNS_ZONE` (default inferred from FQDN, last two labels)
+- Optional `BIND_DNS_ZONE` (default inferred from FQDN using eTLD+1 with local fallback)
 - Optional `BIND_DNS_TTL` (default: `60`)
 - Optional TSIG:
   - `BIND_DNS_TSIG_KEY_NAME`
@@ -64,7 +64,7 @@ export CERTBOT_VALIDATION="challenge-value"
 ./dist/bin-local/excedo-dns-cleanup
 ```
 
-Build release (linux/amd64) binaries:
+Build release (linux/amd64 and linux/arm64) binaries:
 
 ```bash
 make build
@@ -77,10 +77,14 @@ Local build output:
 - `dist/bin-local/excedo-dns-cleanup`
 
 Build output:
-- `dist/bin/bind-dns-deploy`
-- `dist/bin/bind-dns-cleanup`
-- `dist/bin/excedo-dns-deploy`
-- `dist/bin/excedo-dns-cleanup`
+- `dist/bin/amd64/bind-dns-deploy`
+- `dist/bin/amd64/bind-dns-cleanup`
+- `dist/bin/amd64/excedo-dns-deploy`
+- `dist/bin/amd64/excedo-dns-cleanup`
+- `dist/bin/arm64/bind-dns-deploy`
+- `dist/bin/arm64/bind-dns-cleanup`
+- `dist/bin/arm64/excedo-dns-deploy`
+- `dist/bin/arm64/excedo-dns-cleanup`
 
 ## Testing
 

@@ -50,8 +50,8 @@ security: ## Run govulncheck (auto-installs if missing)
 
 # -- Release ------------------------------------------------------------------
 
-docker-build: ## Build multi-arch container image (linux/amd64,linux/arm64) with current TAG and latest tags
-	docker buildx build --platform $(PLATFORMS) --build-arg VERSION=$(TAG) -t $(IMAGE):$(TAG) -t $(IMAGE):latest .
+docker-build: ## Build a local container image with current TAG and latest tags
+	docker build --build-arg VERSION=$(TAG) -t $(IMAGE):$(TAG) -t $(IMAGE):latest .
 
 release-artifacts: build ## Create release tarball from built binaries
 	mkdir -p dist/release
