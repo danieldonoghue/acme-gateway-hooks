@@ -1,10 +1,11 @@
 GO ?= go
 PKG := ./...
 BIN_DIR := dist/bin
+LOCAL_BIN_DIR := dist/bin-local
 IMAGE ?= ghcr.io/danieldonoghue/acme-gateway-hooks
 TAG ?= dev
 
-.PHONY: help build test lint security docker-build release-artifacts
+.PHONY: help build build-local test lint security docker-build release-artifacts
 
 help: ## Show this help message
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -14,8 +15,17 @@ help: ## Show this help message
 
 build: ## Build linux/amd64 static hook binaries
 	mkdir -p $(BIN_DIR)
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GO) build -trimpath -ldflags="-s -w" -o $(BIN_DIR)/bind-dns-deploy ./cmd/bind-dns-deploy
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GO) build -trimpath -ldflags="-s -w" -o $(BIN_DIR)/bind-dns-cleanup ./cmd/bind-dns-cleanup
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GO) build -trimpath -ldflags="-s -w" -o $(BIN_DIR)/excedo-dns-deploy ./cmd/excedo-dns-deploy
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GO) build -trimpath -ldflags="-s -w" -o $(BIN_DIR)/excedo-dns-cleanup ./cmd/excedo-dns-cleanup
+
+build-local: ## Build local OS/arch hook binaries for development and e2e tests
+	mkdir -p $(LOCAL_BIN_DIR)
+	CGO_ENABLED=0 $(GO) build -trimpath -ldflags="-s -w" -o $(LOCAL_BIN_DIR)/bind-dns-deploy ./cmd/bind-dns-deploy
+	CGO_ENABLED=0 $(GO) build -trimpath -ldflags="-s -w" -o $(LOCAL_BIN_DIR)/bind-dns-cleanup ./cmd/bind-dns-cleanup
+	CGO_ENABLED=0 $(GO) build -trimpath -ldflags="-s -w" -o $(LOCAL_BIN_DIR)/excedo-dns-deploy ./cmd/excedo-dns-deploy
+	CGO_ENABLED=0 $(GO) build -trimpath -ldflags="-s -w" -o $(LOCAL_BIN_DIR)/excedo-dns-cleanup ./cmd/excedo-dns-cleanup
 
 # -- Quality ------------------------------------------------------------------
 
@@ -37,4 +47,4 @@ docker-build: ## Build container image with current TAG and latest tags
 
 release-artifacts: build ## Create release tarball from built binaries
 	mkdir -p dist/release
-	tar -C $(BIN_DIR) -czf dist/release/acme-gateway-hooks_linux_amd64.tar.gz excedo-dns-deploy excedo-dns-cleanup
+	tar -C $(BIN_DIR) -czf dist/release/acme-gateway-hooks_linux_amd64.tar.gz bind-dns-deploy bind-dns-cleanup excedo-dns-deploy excedo-dns-cleanup

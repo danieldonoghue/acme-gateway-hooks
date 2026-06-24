@@ -108,9 +108,9 @@ func TestDeployAndCleanupIdempotent(t *testing.T) {
 	t.Setenv("EXCEDO_API_URL", srv.URL)
 	t.Setenv("CERTBOT_DOMAIN", "example.com")
 	t.Setenv("CERTBOT_VALIDATION", "challenge-value")
-	cfg, err := env.Load()
+	cfg, err := env.LoadExcedo()
 	if err != nil {
-		t.Fatalf("Load: %v", err)
+		t.Fatalf("LoadExcedo: %v", err)
 	}
 
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))

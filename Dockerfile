@@ -8,6 +8,8 @@ RUN go mod download
 COPY . .
 
 RUN --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o /out/bind-dns-deploy ./cmd/bind-dns-deploy && \
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o /out/bind-dns-cleanup ./cmd/bind-dns-cleanup && \
     CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o /out/excedo-dns-deploy ./cmd/excedo-dns-deploy && \
     CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o /out/excedo-dns-cleanup ./cmd/excedo-dns-cleanup
 
@@ -18,6 +20,8 @@ RUN mkdir -p /toolbox/bin && \
     ln -s busybox /toolbox/bin/cp
 
 FROM gcr.io/distroless/static-debian12:nonroot
+COPY --from=builder --chmod=0555 /out/bind-dns-deploy /usr/local/bin/bind-dns-deploy
+COPY --from=builder --chmod=0555 /out/bind-dns-cleanup /usr/local/bin/bind-dns-cleanup
 COPY --from=builder --chmod=0555 /out/excedo-dns-deploy /usr/local/bin/excedo-dns-deploy
 COPY --from=builder --chmod=0555 /out/excedo-dns-cleanup /usr/local/bin/excedo-dns-cleanup
 COPY --from=toolbox --chmod=0555 /toolbox/bin /bin

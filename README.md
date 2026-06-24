@@ -4,60 +4,96 @@ Standalone DNS hook toolkit for `acme-gateway` DNS-01 integrations.
 
 ## Supported Hooks
 
+- BIND / RFC2136
+  - `bind-dns-deploy`
+  - `bind-dns-cleanup`
 - Excedo
   - `excedo-dns-deploy`
   - `excedo-dns-cleanup`
 
-This repository is structured for additional provider binaries over time, for example:
-- `route53-dns-deploy`
-- `cloudflare-dns-cleanup`
-
 ## Environment Contract
 
-Required:
-- `EXCEDO_API_TOKEN`
+Common inputs (all binaries):
+- `CERTBOT_DOMAIN` or `ACME_GATEWAY_DOMAIN`
+- `CERTBOT_VALIDATION` or `ACME_GATEWAY_TOKEN`
+- Optional `ACME_GATEWAY_FQDN` (defaults to `_acme-challenge.<domain>`)
 
-Optional:
+BIND / RFC2136 variables:
+- Optional `BIND_DNS_SERVER` (default: `127.0.0.1:53`)
+- Optional `BIND_DNS_ZONE` (default inferred from FQDN, last two labels)
+- Optional `BIND_DNS_TTL` (default: `60`)
+- Optional TSIG:
+  - `BIND_DNS_TSIG_KEY_NAME`
+  - `BIND_DNS_TSIG_SECRET`
+  - `BIND_DNS_TSIG_ALGORITHM` (default: `hmac-sha256.`)
+
+Excedo variables:
+- Required `EXCEDO_API_TOKEN`
 - `EXCEDO_API_URL` (default: `https://api.domainname.systems`)
-- `ACME_GATEWAY_FQDN` (default: `_acme-challenge.<domain>`)
-
-Domain input fallback:
-- `CERTBOT_DOMAIN`
-- `ACME_GATEWAY_DOMAIN`
-
-TXT input fallback:
-- `CERTBOT_VALIDATION`
-- `ACME_GATEWAY_TOKEN`
 
 ## Local Usage
+
+Build local binaries first:
+
+```bash
+make build-local
+export ACME_HOOKS_BIN_DIR="$PWD/dist/bin-local"
+```
+
+### BIND / RFC2136
+
+```bash
+export CERTBOT_DOMAIN="test.pebble-test.local"
+export CERTBOT_VALIDATION="challenge-value"
+export ACME_GATEWAY_FQDN="_acme-challenge.test.pebble-test.local"
+export BIND_DNS_SERVER="127.0.0.1:1053"
+export BIND_DNS_ZONE="pebble-test.local"
+
+./dist/bin-local/bind-dns-deploy
+./dist/bin-local/bind-dns-cleanup
+```
+
+### Excedo
 
 ```bash
 export EXCEDO_API_TOKEN="<token>"
 export CERTBOT_DOMAIN="example.com"
 export CERTBOT_VALIDATION="challenge-value"
 
-./dist/bin/excedo-dns-deploy
-./dist/bin/excedo-dns-cleanup
+./dist/bin-local/excedo-dns-deploy
+./dist/bin-local/excedo-dns-cleanup
 ```
 
-Build binaries:
+Build release (linux/amd64) binaries:
 
 ```bash
 make build
 ```
 
+Local build output:
+- `dist/bin-local/bind-dns-deploy`
+- `dist/bin-local/bind-dns-cleanup`
+- `dist/bin-local/excedo-dns-deploy`
+- `dist/bin-local/excedo-dns-cleanup`
+
+Build output:
+- `dist/bin/bind-dns-deploy`
+- `dist/bin/bind-dns-cleanup`
+- `dist/bin/excedo-dns-deploy`
+- `dist/bin/excedo-dns-cleanup`
+
 ## Kubernetes InitContainer Example
 
 ```yaml
 initContainers:
-  - name: install-excedo-hook
+  - name: install-hook-binaries
     image: ghcr.io/<org>/acme-gateway-hooks:latest
     command: ["/bin/sh", "-ec"]
     args:
       - |
-        cp /usr/local/bin/excedo-dns-deploy /hooks/excedo-dns-deploy
-        cp /usr/local/bin/excedo-dns-cleanup /hooks/excedo-dns-cleanup
-        chmod 0555 /hooks/excedo-dns-deploy /hooks/excedo-dns-cleanup
+        cp /usr/local/bin/*-dns-deploy /hooks
+        cp /usr/local/bin/*-dns-cleanup /hooks
+        chmod 0555 /hooks/*-dns-deploy /hooks/*-dns-cleanup
     securityContext:
       allowPrivilegeEscalation: false
       readOnlyRootFilesystem: true
@@ -83,8 +119,13 @@ Then configure `acme-gateway`:
 
 ```yaml
 dns_hook:
-  deploy_script: "/hooks/excedo-dns-deploy"
-  cleanup_script: "/hooks/excedo-dns-cleanup"
+  # BIND / RFC2136
+  deploy_script: "/hooks/bind-dns-deploy"
+  cleanup_script: "/hooks/bind-dns-cleanup"
+
+  # Or Excedo
+  # deploy_script: "/hooks/excedo-dns-deploy"
+  # cleanup_script: "/hooks/excedo-dns-cleanup"
 ```
 
 ## Versioning

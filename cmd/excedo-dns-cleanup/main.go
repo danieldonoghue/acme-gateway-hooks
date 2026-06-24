@@ -13,7 +13,7 @@ import (
 func main() {
 	logs := logging.New("excedo-dns-cleanup")
 
-	cfg, err := env.Load()
+	cfg, err := env.LoadExcedo()
 	if err != nil {
 		logs.Error.Error("invalid environment", "error", err.Error())
 		os.Exit(1)
