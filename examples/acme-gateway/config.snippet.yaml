@@ -3,5 +3,25 @@ upstreams:
     directory_url: "https://acme-v02.api.letsencrypt.org/directory"
     contact_email: "ops@example.com"
     dns_hook:
-      deploy_script: "/hooks/excedo-dns-deploy"
-      cleanup_script: "/hooks/excedo-dns-cleanup"
+      # RFC2136/BIND hooks
+      deploy_script: "/hooks/bind-dns-deploy"
+      cleanup_script: "/hooks/bind-dns-cleanup"
+
+  # Alternative Excedo provider hook paths:
+  # letsencrypt:
+  #   directory_url: "https://acme-v02.api.letsencrypt.org/directory"
+  #   contact_email: "ops@example.com"
+  #   dns_hook:
+  #     deploy_script: "/hooks/excedo-dns-deploy"
+  #     cleanup_script: "/hooks/excedo-dns-cleanup"
+
+bootstrap:
+  dns_hook:
+    # Same hook binaries can be reused for bootstrap cert issuance.
+    deploy_script: "/hooks/bind-dns-deploy"
+    cleanup_script: "/hooks/bind-dns-cleanup"
+
+  # Alternative Excedo provider hook paths:
+  # dns_hook:
+  #   deploy_script: "/hooks/excedo-dns-deploy"
+  #   cleanup_script: "/hooks/excedo-dns-cleanup"
