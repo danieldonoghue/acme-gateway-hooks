@@ -14,7 +14,8 @@ import (
 
 const (
 	SuccessCode       = 1000
-	NotFoundCode      = 2201
+	SuccessNoMsgCode  = 1300
+	NotFoundCode      = 2303
 	defaultTimeout    = 10 * time.Second
 	defaultMaxRetries = 4
 )
@@ -48,10 +49,18 @@ func (c *Client) Login(ctx context.Context) (string, error) {
 	if err := decodeJSONStrict(resp, &authResp); err != nil {
 		return "", fmt.Errorf("decode auth response: %w", err)
 	}
-	if authResp.Code != SuccessCode || authResp.Token == "" {
+	token := strings.TrimSpace(authResp.Token)
+	if token == "" {
+		token = authResp.ParametersToken()
+	}
+	if !isSuccessCode(authResp.Code) || token == "" {
 		return "", fmt.Errorf("authentication failed: code=%d", authResp.Code)
 	}
-	return authResp.Token, nil
+	return token, nil
+}
+
+func isSuccessCode(code int) bool {
+	return code == SuccessCode || code == SuccessNoMsgCode
 }
 
 func (c *Client) GetRecords(ctx context.Context, sessionToken, domainName string) (*GetRecordsResponse, error) {
@@ -169,7 +178,6 @@ func (c *Client) doJSONRequest(ctx context.Context, method, endpoint string, bod
 
 func decodeJSONStrict(data []byte, dst any) error {
 	dec := json.NewDecoder(bytes.NewReader(data))
-	dec.DisallowUnknownFields()
 	if err := dec.Decode(dst); err != nil {
 		return err
 	}

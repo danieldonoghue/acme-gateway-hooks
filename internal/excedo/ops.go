@@ -13,7 +13,7 @@ func Deploy(ctx context.Context, logger *slog.Logger, client *Client, cfg Config
 		return err
 	}
 
-	zone, recName, err := resolveZoneAndRecord(ctx, client, session, cfg.FQDN)
+	zone, recName, err := resolveZoneAndRecord(ctx, client, session, cfg.FQDN, cfg.DNSZone)
 	if err != nil {
 		return err
 	}
@@ -22,7 +22,7 @@ func Deploy(ctx context.Context, logger *slog.Logger, client *Client, cfg Config
 	if err != nil {
 		return err
 	}
-	if resp.Code != SuccessCode {
+	if !isSuccessCode(resp.Code) {
 		return fmt.Errorf("add TXT record failed with API code %d", resp.Code)
 	}
 
@@ -37,7 +37,7 @@ func Cleanup(ctx context.Context, logger *slog.Logger, client *Client, cfg Confi
 		return nil
 	}
 
-	zone, recName, err := resolveZoneAndRecord(ctx, client, session, cfg.FQDN)
+	zone, recName, err := resolveZoneAndRecord(ctx, client, session, cfg.FQDN, cfg.DNSZone)
 	if err != nil {
 		logger.Warn("cleanup could not resolve zone; returning success for idempotency", "fqdn", cfg.FQDN, "error", err.Error())
 		return nil
@@ -48,7 +48,7 @@ func Cleanup(ctx context.Context, logger *slog.Logger, client *Client, cfg Confi
 		logger.Warn("cleanup could not fetch records; returning success for idempotency", "zone", zone, "error", err.Error())
 		return nil
 	}
-	if recordsResp.Code != SuccessCode {
+	if !isSuccessCode(recordsResp.Code) {
 		logger.Warn("cleanup getrecords non-success; returning success for idempotency", "zone", zone, "api_code", recordsResp.Code)
 		return nil
 	}
@@ -65,7 +65,7 @@ func Cleanup(ctx context.Context, logger *slog.Logger, client *Client, cfg Confi
 			logger.Warn("delete record request failed; continuing", "record_id", recordID, "error", delErr.Error())
 			continue
 		}
-		if delResp.Code != SuccessCode && delResp.Code != NotFoundCode {
+		if !isSuccessCode(delResp.Code) && delResp.Code != NotFoundCode {
 			logger.Warn("delete record API returned non-success; continuing", "record_id", recordID, "api_code", delResp.Code)
 			continue
 		}
@@ -75,14 +75,18 @@ func Cleanup(ctx context.Context, logger *slog.Logger, client *Client, cfg Confi
 	return nil
 }
 
-func resolveZoneAndRecord(ctx context.Context, client *Client, sessionToken, fqdn string) (string, string, error) {
+func resolveZoneAndRecord(ctx context.Context, client *Client, sessionToken, fqdn, configuredZone string) (string, string, error) {
+	if configuredZone != "" {
+		return configuredZone, RelativeRecordName(fqdn, configuredZone), nil
+	}
+
 	candidates := ZoneCandidates(fqdn)
 	for _, zone := range candidates {
 		resp, err := client.GetRecords(ctx, sessionToken, zone)
 		if err != nil {
 			continue
 		}
-		if resp.Code == SuccessCode {
+		if isSuccessCode(resp.Code) {
 			return zone, RelativeRecordName(fqdn, zone), nil
 		}
 	}
@@ -121,6 +125,7 @@ func RelativeRecordName(fqdn, zone string) string {
 func findMatchingRecords(resp *GetRecordsResponse, fqdn, relativeName, expectedValue string) []string {
 	fqdn = strings.Trim(strings.ToLower(fqdn), ".")
 	relativeName = strings.Trim(strings.ToLower(relativeName), ".")
+	expectedValue = normalizeTXTValue(expectedValue)
 
 	ids := make([]string, 0)
 	seen := map[string]struct{}{}
@@ -133,7 +138,7 @@ func findMatchingRecords(resp *GetRecordsResponse, fqdn, relativeName, expectedV
 			if name != fqdn && name != relativeName {
 				continue
 			}
-			if record.Content != expectedValue {
+			if normalizeTXTValue(record.Content) != expectedValue {
 				continue
 			}
 			if record.RecordID == "" {
@@ -147,6 +152,12 @@ func findMatchingRecords(resp *GetRecordsResponse, fqdn, relativeName, expectedV
 		}
 	}
 	return ids
+}
+
+func normalizeTXTValue(v string) string {
+	v = strings.TrimSpace(v)
+	v = strings.Trim(v, `"`)
+	return v
 }
 
 func uniq(in []string) []string {

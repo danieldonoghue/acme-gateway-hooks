@@ -30,6 +30,12 @@ BIND / RFC2136 variables:
 Excedo variables:
 - Required `EXCEDO_API_TOKEN`
 - `EXCEDO_API_URL` (default: `https://api.domainname.systems`)
+- Default zone behavior: if no explicit zone is set, the hook infers the parent zone (eTLD+1) from `CERTBOT_DOMAIN`/`ACME_GATEWAY_DOMAIN`.
+- Optional explicit zone override:
+  - `EXCEDO_DNS_ZONE` (preferred)
+  - `EXCEDO_ZONE` (compatibility alias)
+  - `EXCEDO_DOMAINNAME` (compatibility alias)
+  - `ACME_GATEWAY_DNS_ZONE` (shared gateway alias)
 
 ## Local Usage
 
@@ -59,6 +65,8 @@ export BIND_DNS_ZONE="pebble-test.local"
 export EXCEDO_API_TOKEN="<token>"
 export CERTBOT_DOMAIN="example.com"
 export CERTBOT_VALIDATION="challenge-value"
+# Optional override when account routing requires a specific domainname:
+export EXCEDO_DNS_ZONE="example.com"
 
 ./dist/bin-local/excedo-dns-deploy
 ./dist/bin-local/excedo-dns-cleanup

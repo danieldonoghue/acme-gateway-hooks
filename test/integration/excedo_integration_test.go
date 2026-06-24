@@ -88,7 +88,7 @@ func (f *fakeExcedo) handler() http.Handler {
 			}
 		}
 		if idx == -1 {
-			writeJSON(w, map[string]any{"code": 2201, "message": "not found"})
+			writeJSON(w, map[string]any{"code": 2303, "message": "not found"})
 			return
 		}
 		f.records[domain] = append(recs[:idx], recs[idx+1:]...)
