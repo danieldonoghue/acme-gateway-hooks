@@ -6,7 +6,7 @@ IMAGE ?= ghcr.io/danieldonoghue/acme-gateway-hooks
 TAG ?= dev
 PLATFORMS ?= linux/amd64,linux/arm64
 
-.PHONY: help build build-local test lint security docker-build docker-build-multiarch docker-push-multiarch release-artifacts
+.PHONY: help build build-local test lint security docker-build release-artifacts clean
 
 help: ## Show this help message
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
