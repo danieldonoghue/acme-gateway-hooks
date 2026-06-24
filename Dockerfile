@@ -3,15 +3,18 @@
 FROM golang:1.26.4-alpine AS builder
 WORKDIR /src
 
+ARG TARGETOS
+ARG TARGETARCH
+
 COPY go.mod ./
 RUN go mod download
 COPY . .
 
 RUN --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o /out/bind-dns-deploy ./cmd/bind-dns-deploy && \
-    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o /out/bind-dns-cleanup ./cmd/bind-dns-cleanup && \
-    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o /out/excedo-dns-deploy ./cmd/excedo-dns-deploy && \
-    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o /out/excedo-dns-cleanup ./cmd/excedo-dns-cleanup
+    CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/bind-dns-deploy ./cmd/bind-dns-deploy && \
+    CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/bind-dns-cleanup ./cmd/bind-dns-cleanup && \
+    CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/excedo-dns-deploy ./cmd/excedo-dns-deploy && \
+    CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/excedo-dns-cleanup ./cmd/excedo-dns-cleanup
 
 FROM busybox:1.36.1-musl AS toolbox
 RUN mkdir -p /toolbox/bin && \
