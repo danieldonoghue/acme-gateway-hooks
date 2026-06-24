@@ -52,3 +52,32 @@ func TestLoadConfigInvalidTTL(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
+
+func TestLoadConfigZoneInferenceUsesETLDPlusOne(t *testing.T) {
+	t.Setenv("CERTBOT_DOMAIN", "api.example.co.uk")
+	t.Setenv("CERTBOT_VALIDATION", "txt")
+	t.Setenv("ACME_GATEWAY_FQDN", "_acme-challenge.api.example.co.uk")
+
+	cfg, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig() error = %v", err)
+	}
+	if cfg.DNSZone != "example.co.uk" {
+		t.Fatalf("unexpected inferred zone: %s", cfg.DNSZone)
+	}
+}
+
+func TestLoadConfigZoneInferenceFailure(t *testing.T) {
+	t.Setenv("CERTBOT_DOMAIN", "example.com")
+	t.Setenv("CERTBOT_VALIDATION", "txt")
+	t.Setenv("ACME_GATEWAY_FQDN", "singlelabel")
+	t.Setenv("BIND_DNS_ZONE", "")
+
+	_, err := LoadConfig()
+	if err == nil {
+		t.Fatal("expected missing zone error")
+	}
+	if !strings.Contains(err.Error(), "missing required DNS zone") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}

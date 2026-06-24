@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/danieldonoghue/acme-gateway-hooks/internal/env"
+	"golang.org/x/net/publicsuffix"
 )
 
 const defaultDNSServer = "127.0.0.1:53"
@@ -84,7 +85,16 @@ func normalizeDNSServer(v string) string {
 }
 
 func deriveDefaultZone(fqdn string) string {
-	labels := strings.Split(env.NormalizeFQDN(fqdn), ".")
+	normalized := env.NormalizeFQDN(fqdn)
+	if normalized == "" {
+		return ""
+	}
+
+	if etldPlusOne, err := publicsuffix.EffectiveTLDPlusOne(normalized); err == nil {
+		return etldPlusOne
+	}
+
+	labels := strings.Split(normalized, ".")
 	if len(labels) < 2 {
 		return ""
 	}

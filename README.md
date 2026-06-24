@@ -103,7 +103,7 @@ See `docs/adding-dns-provider.md` for the provider implementation workflow, test
 ```yaml
 initContainers:
   - name: install-hook-binaries
-    image: ghcr.io/<org>/acme-gateway-hooks:latest
+    image: ghcr.io/danieldonoghue/acme-gateway-hooks:latest
     command: ["/bin/sh", "-ec"]
     args:
       - |
@@ -146,7 +146,7 @@ dns_hook:
 
 ## Versioning
 
-- SemVer tags are published as `ghcr.io/<org>/acme-gateway-hooks:vX.Y.Z`.
+- SemVer tags are published as `ghcr.io/danieldonoghue/acme-gateway-hooks:vX.Y.Z`.
 - `latest` tracks the newest released SemVer tag.
 
 ## Security Notes

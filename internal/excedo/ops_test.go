@@ -1,7 +1,16 @@
 package excedo
 
 import (
+	"context"
+	"io"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"sync/atomic"
 	"testing"
+	"time"
+
+	"github.com/danieldonoghue/acme-gateway-hooks/internal/env"
 )
 
 func TestZoneCandidates(t *testing.T) {
@@ -43,5 +52,109 @@ func TestFindMatchingRecords(t *testing.T) {
 	ids := findMatchingRecords(resp, "_acme-challenge.example.com", "_acme-challenge", "good")
 	if len(ids) != 2 {
 		t.Fatalf("matched records = %d, want 2", len(ids))
+	}
+}
+
+func TestCleanupReturnsSuccessWhenLoginFails(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/authenticate/login/token" {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = w.Write([]byte("temporary"))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer srv.Close()
+
+	client := NewClient(srv.URL, "token")
+	client.maxRetries = 0
+	client.backoff = 1 * time.Millisecond
+
+	cfg := Config{CommonConfig: env.CommonConfig{Domain: "example.com", Validation: "txt", FQDN: "_acme-challenge.example.com"}}
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+
+	if err := Cleanup(context.Background(), logger, client, cfg); err != nil {
+		t.Fatalf("Cleanup() error = %v", err)
+	}
+}
+
+func TestCleanupReturnsSuccessWhenGetRecordsListingNonSuccess(t *testing.T) {
+	var getRecordsCalls atomic.Int32
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/authenticate/login/token":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":1000,"message":"ok","token":"session"}`))
+		case r.URL.Path == "/dns/getrecords/session":
+			call := getRecordsCalls.Add(1)
+			w.Header().Set("Content-Type", "application/json")
+			if call == 1 {
+				_, _ = w.Write([]byte(`{"code":1000,"message":"ok","dns":{"example.com":{"records":[]}}}`))
+				return
+			}
+			_, _ = w.Write([]byte(`{"code":2004,"message":"zone not found","dns":{}}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	client := NewClient(srv.URL, "token")
+	client.maxRetries = 0
+	client.backoff = 1 * time.Millisecond
+
+	cfg := Config{CommonConfig: env.CommonConfig{Domain: "example.com", Validation: "txt", FQDN: "_acme-challenge.example.com"}}
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+
+	if err := Cleanup(context.Background(), logger, client, cfg); err != nil {
+		t.Fatalf("Cleanup() error = %v", err)
+	}
+}
+
+func TestCleanupContinuesWhenDeleteFails(t *testing.T) {
+	var getRecordsCalls atomic.Int32
+	var deleteCalls atomic.Int32
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/authenticate/login/token":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":1000,"message":"ok","token":"session"}`))
+		case r.URL.Path == "/dns/getrecords/session":
+			call := getRecordsCalls.Add(1)
+			w.Header().Set("Content-Type", "application/json")
+			if call == 1 {
+				_, _ = w.Write([]byte(`{"code":1000,"message":"ok","dns":{"example.com":{"records":[]}}}`))
+				return
+			}
+			_, _ = w.Write([]byte(`{"code":1000,"message":"ok","dns":{"example.com":{"records":[{"recordid":"1","name":"_acme-challenge","type":"TXT","content":"txt"},{"recordid":"2","name":"_acme-challenge","type":"TXT","content":"txt"}]}}}`))
+		case r.URL.Path == "/dns/deleterecord/session":
+			call := deleteCalls.Add(1)
+			if call == 1 {
+				w.WriteHeader(http.StatusInternalServerError)
+				_, _ = w.Write([]byte("temporary"))
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":1000,"message":"ok"}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	client := NewClient(srv.URL, "token")
+	client.maxRetries = 0
+	client.backoff = 1 * time.Millisecond
+
+	cfg := Config{CommonConfig: env.CommonConfig{Domain: "example.com", Validation: "txt", FQDN: "_acme-challenge.example.com"}}
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+
+	if err := Cleanup(context.Background(), logger, client, cfg); err != nil {
+		t.Fatalf("Cleanup() error = %v", err)
+	}
+	if deleteCalls.Load() != 2 {
+		t.Fatalf("delete calls = %d, want 2", deleteCalls.Load())
 	}
 }

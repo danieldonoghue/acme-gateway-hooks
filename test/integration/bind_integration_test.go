@@ -14,8 +14,11 @@ import (
 )
 
 type fakeBindServer struct {
-	mu      sync.Mutex
-	records map[string]map[string]struct{}
+	mu           sync.Mutex
+	records      map[string]map[string]struct{}
+	seenTSIG     bool
+	lastTSIGKey  string
+	lastTSIGAlgo string
 }
 
 func newFakeBindServer() *fakeBindServer {
@@ -40,6 +43,12 @@ func (f *fakeBindServer) handleMessage(r *dns.Msg) *dns.Msg {
 
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
+	if tsig := r.IsTsig(); tsig != nil {
+		f.seenTSIG = true
+		f.lastTSIGKey = strings.ToLower(tsig.Hdr.Name)
+		f.lastTSIGAlgo = strings.ToLower(tsig.Algorithm)
+	}
 
 	for _, rr := range r.Ns {
 		txt, ok := rr.(*dns.TXT)
@@ -78,6 +87,15 @@ func (f *fakeBindServer) hasTXT(name, value string) bool {
 	}
 	_, ok = values[value]
 	return ok
+}
+
+func (f *fakeBindServer) sawTSIG(keyName, algorithm string) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if !f.seenTSIG {
+		return false
+	}
+	return f.lastTSIGKey == strings.ToLower(dns.Fqdn(keyName)) && f.lastTSIGAlgo == strings.ToLower(dns.Fqdn(algorithm))
 }
 
 func TestBindDeployAndCleanupIdempotent(t *testing.T) {
@@ -149,5 +167,67 @@ func TestBindDeployAndCleanupIdempotent(t *testing.T) {
 
 	if err := bind.Cleanup(ctx, logger, cfg); err != nil {
 		t.Fatalf("Cleanup second call should be idempotent: %v", err)
+	}
+}
+
+func TestBindDeployUsesTSIGWhenConfigured(t *testing.T) {
+	srvState := newFakeBindServer()
+
+	pc, err := net.ListenPacket("udp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("ListenPacket: %v", err)
+	}
+	defer pc.Close()
+
+	serveDone := make(chan struct{})
+	go func() {
+		defer close(serveDone)
+		buf := make([]byte, 4096)
+		for {
+			n, addr, readErr := pc.ReadFrom(buf)
+			if readErr != nil {
+				return
+			}
+
+			req := new(dns.Msg)
+			if unpackErr := req.Unpack(buf[:n]); unpackErr != nil {
+				continue
+			}
+
+			resp := srvState.handleMessage(req)
+			packed, packErr := resp.Pack()
+			if packErr != nil {
+				continue
+			}
+
+			_, _ = pc.WriteTo(packed, addr)
+		}
+	}()
+	defer func() {
+		_ = pc.Close()
+		<-serveDone
+	}()
+
+	t.Setenv("CERTBOT_DOMAIN", "example.com")
+	t.Setenv("CERTBOT_VALIDATION", "challenge-value")
+	t.Setenv("ACME_GATEWAY_FQDN", "_acme-challenge.example.com")
+	t.Setenv("BIND_DNS_SERVER", pc.LocalAddr().String())
+	t.Setenv("BIND_DNS_ZONE", "example.com")
+	t.Setenv("BIND_DNS_TSIG_KEY_NAME", "acme-key")
+	t.Setenv("BIND_DNS_TSIG_SECRET", "c2VjcmV0")
+	t.Setenv("BIND_DNS_TSIG_ALGORITHM", "hmac-sha256")
+
+	cfg, err := bind.LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	if err := bind.Deploy(context.Background(), logger, cfg); err != nil {
+		t.Fatalf("Deploy: %v", err)
+	}
+
+	if !srvState.sawTSIG("acme-key", "hmac-sha256") {
+		t.Fatal("expected deploy update to include TSIG")
 	}
 }

@@ -65,6 +65,63 @@ func (c *Config) Validate() error {
 }
 ```
 
+### Env Tagging Reference
+
+The `env` package reads struct tags in this format:
+
+- ``env:"<keys>[,<option1>[,<option2>...]]"``
+
+Where:
+
+- `<keys>` is one or more environment variable names.
+- Multiple keys are separated with `|` and are checked left-to-right.
+- Options are comma-separated.
+
+Examples:
+
+- ``env:"PROVIDER_API_TOKEN,required"``
+    - `PROVIDER_API_TOKEN` must be set and non-empty.
+
+- ``env:"PROVIDER_API_URL,default=https://api.example.com"``
+    - Use `PROVIDER_API_URL` when set, otherwise use the provided default string.
+
+- ``env:"PROVIDER_DNS_SERVER|ACME_GATEWAY_DNS_SERVER,default=127.0.0.1:53"``
+    - Try `PROVIDER_DNS_SERVER` first.
+    - If empty, try `ACME_GATEWAY_DNS_SERVER`.
+    - If both are empty, use `127.0.0.1:53`.
+
+- ``env:"-"``
+    - Skip loading this field entirely.
+
+Supported options:
+
+- `required`
+    - Fails config loading when no non-empty value is found for any listed key.
+
+- `default=<value>`
+    - Uses `<value>` when no non-empty value is found for listed keys.
+    - Parsed using the field type parser.
+
+Field type parsing currently supports:
+
+- `string`
+- `bool`
+- signed integers (`int`, `int8`, `int16`, `int32`, `int64`)
+- unsigned integers (`uint`, `uint8`, `uint16`, `uint32`, `uint64`)
+
+Notes:
+
+- Values are trimmed before parsing.
+- Empty strings are treated as not set.
+- Unknown tag options fail fast.
+- Validation beyond basic parsing belongs in `Validate()`.
+
+Recommended pattern:
+
+1. Express required/default/fallback behavior in tags.
+2. Keep normalization and cross-field rules in `Validate()`.
+3. Keep provider-specific semantics out of `internal/env`.
+
 ## 3. Implement Provider Operations
 
 In `internal/<provider>/ops.go` implement:
