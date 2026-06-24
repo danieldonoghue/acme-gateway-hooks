@@ -6,14 +6,13 @@ import (
 	"time"
 
 	"github.com/danieldonoghue/acme-gateway-hooks/internal/bind"
-	"github.com/danieldonoghue/acme-gateway-hooks/internal/env"
 	"github.com/danieldonoghue/acme-gateway-hooks/internal/logging"
 )
 
 func main() {
 	logs := logging.New("bind-dns-deploy")
 
-	cfg, err := env.LoadBind()
+	cfg, err := bind.LoadConfig()
 	if err != nil {
 		logs.Error.Error("invalid environment", "error", err.Error())
 		os.Exit(1)

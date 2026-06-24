@@ -5,11 +5,9 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
-
-	"github.com/danieldonoghue/acme-gateway-hooks/internal/env"
 )
 
-func Deploy(ctx context.Context, logger *slog.Logger, client *Client, cfg env.ExcedoConfig) error {
+func Deploy(ctx context.Context, logger *slog.Logger, client *Client, cfg Config) error {
 	session, err := client.Login(ctx)
 	if err != nil {
 		return err
@@ -32,7 +30,7 @@ func Deploy(ctx context.Context, logger *slog.Logger, client *Client, cfg env.Ex
 	return nil
 }
 
-func Cleanup(ctx context.Context, logger *slog.Logger, client *Client, cfg env.ExcedoConfig) error {
+func Cleanup(ctx context.Context, logger *slog.Logger, client *Client, cfg Config) error {
 	session, err := client.Login(ctx)
 	if err != nil {
 		logger.Warn("cleanup login failed; returning success for idempotency", "error", err.Error())

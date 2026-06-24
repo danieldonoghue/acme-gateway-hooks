@@ -8,11 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/danieldonoghue/acme-gateway-hooks/internal/env"
 	"github.com/miekg/dns"
 )
 
-func Deploy(ctx context.Context, logger *slog.Logger, cfg env.BindConfig) error {
+func Deploy(ctx context.Context, logger *slog.Logger, cfg Config) error {
 	msg := newUpdateMessage(cfg, true)
 	resp, err := exchange(ctx, msg, cfg)
 	if err != nil {
@@ -26,7 +25,7 @@ func Deploy(ctx context.Context, logger *slog.Logger, cfg env.BindConfig) error 
 	return nil
 }
 
-func Cleanup(ctx context.Context, logger *slog.Logger, cfg env.BindConfig) error {
+func Cleanup(ctx context.Context, logger *slog.Logger, cfg Config) error {
 	msg := newUpdateMessage(cfg, false)
 	resp, err := exchange(ctx, msg, cfg)
 	if err != nil {
@@ -43,7 +42,7 @@ func Cleanup(ctx context.Context, logger *slog.Logger, cfg env.BindConfig) error
 	return nil
 }
 
-func newUpdateMessage(cfg env.BindConfig, deploy bool) *dns.Msg {
+func newUpdateMessage(cfg Config, deploy bool) *dns.Msg {
 	msg := new(dns.Msg)
 	msg.SetUpdate(dns.Fqdn(cfg.DNSZone))
 
@@ -70,7 +69,7 @@ func newUpdateMessage(cfg env.BindConfig, deploy bool) *dns.Msg {
 	return msg
 }
 
-func exchange(ctx context.Context, msg *dns.Msg, cfg env.BindConfig) (*dns.Msg, error) {
+func exchange(ctx context.Context, msg *dns.Msg, cfg Config) (*dns.Msg, error) {
 	client := &dns.Client{
 		Net:     protocolForAddress(cfg.DNSServer),
 		Timeout: 10 * time.Second,

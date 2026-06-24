@@ -1,79 +1,139 @@
 package env
 
 import (
-	"os"
+	"errors"
+	"strings"
 	"testing"
 )
 
-func TestLoadExcedoDefaultsAndFallbacks(t *testing.T) {
-	t.Setenv("EXCEDO_API_TOKEN", "token")
-	t.Setenv("ACME_GATEWAY_DOMAIN", "Example.COM")
-	t.Setenv("ACME_GATEWAY_TOKEN", "txt")
-	t.Setenv("CERTBOT_DOMAIN", "")
-	t.Setenv("CERTBOT_VALIDATION", "")
-	t.Setenv("ACME_GATEWAY_FQDN", "")
+type sampleConfig struct {
+	Required string `env:"PRIMARY|SECONDARY,required"`
+	Count    uint32 `env:"COUNT,default=60"`
+	Enabled  bool   `env:"ENABLED,default=true"`
+}
 
-	cfg, err := LoadExcedo()
+func (s *sampleConfig) Validate() error {
+	if s.Required == "bad" {
+		return errors.New("validator failed")
+	}
+	return nil
+}
+
+func TestLoadAppliesFallbackAndDefaults(t *testing.T) {
+	lookup := func(key string) (string, bool) {
+		values := map[string]string{
+			"SECONDARY": "value-from-secondary",
+		}
+		v, ok := values[key]
+		return v, ok
+	}
+
+	var cfg sampleConfig
+	err := Load(&cfg, WithLookup(lookup))
 	if err != nil {
-		t.Fatalf("LoadExcedo() error = %v", err)
+		t.Fatalf("Load() error = %v", err)
 	}
-	if cfg.APIURL != "https://api.domainname.systems" {
-		t.Fatalf("unexpected default API URL: %s", cfg.APIURL)
+
+	if cfg.Required != "value-from-secondary" {
+		t.Fatalf("Required = %q", cfg.Required)
 	}
+	if cfg.Count != 60 {
+		t.Fatalf("Count = %d", cfg.Count)
+	}
+	if !cfg.Enabled {
+		t.Fatal("Enabled expected true")
+	}
+}
+
+func TestLoadCollectsErrors(t *testing.T) {
+	var cfg sampleConfig
+	err := Load(&cfg, WithLookup(func(string) (string, bool) { return "", false }))
+	if err == nil {
+		t.Fatal("expected error")
+	}
+
+	var loadErr *LoadError
+	if !errors.As(err, &loadErr) {
+		t.Fatalf("expected LoadError, got %T", err)
+	}
+	if len(loadErr.Problems) == 0 {
+		t.Fatal("expected at least one problem")
+	}
+	if !strings.Contains(loadErr.Error(), "missing required environment variable") {
+		t.Fatalf("unexpected error text: %s", loadErr.Error())
+	}
+}
+
+func TestLoadAndValidateError(t *testing.T) {
+	lookup := func(key string) (string, bool) {
+		if key == "PRIMARY" {
+			return "bad", true
+		}
+		return "", false
+	}
+
+	var cfg sampleConfig
+	err := LoadAndValidate(&cfg, WithLookup(lookup))
+	if err == nil {
+		t.Fatal("expected validator error")
+	}
+	if !strings.Contains(err.Error(), "validator failed") {
+		t.Fatalf("unexpected validator error: %v", err)
+	}
+}
+
+type unsupportedTypeConfig struct {
+	Values []string `env:"VALUES,default=a"`
+}
+
+func TestLoadUnsupportedFieldType(t *testing.T) {
+	var cfg unsupportedTypeConfig
+	err := Load(&cfg, WithLookup(func(string) (string, bool) { return "", false }))
+	if err == nil {
+		t.Fatal("expected unsupported type error")
+	}
+	if !strings.Contains(err.Error(), "unsupported field type") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+type nonValidatableConfig struct {
+	Required string `env:"PRIMARY,required"`
+}
+
+func TestLoadAndValidateRequiresValidatable(t *testing.T) {
+	var cfg nonValidatableConfig
+	err := LoadAndValidate(&cfg, WithLookup(func(key string) (string, bool) {
+		if key == "PRIMARY" {
+			return "ok", true
+		}
+		return "", false
+	}))
+	if err == nil {
+		t.Fatal("expected Validatable enforcement error")
+	}
+	if !strings.Contains(err.Error(), "must implement Validatable") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestCommonConfigValidateNormalizesAndDefaults(t *testing.T) {
+	cfg := CommonConfig{
+		Domain:     " Example.COM ",
+		Validation: " challenge ",
+	}
+
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+
 	if cfg.Domain != "example.com" {
-		t.Fatalf("unexpected domain: %s", cfg.Domain)
+		t.Fatalf("Domain = %q", cfg.Domain)
+	}
+	if cfg.Validation != "challenge" {
+		t.Fatalf("Validation = %q", cfg.Validation)
 	}
 	if cfg.FQDN != "_acme-challenge.example.com" {
-		t.Fatalf("unexpected fqdn: %s", cfg.FQDN)
-	}
-}
-
-func TestLoadExcedoRequiredVars(t *testing.T) {
-	keys := []string{
-		"EXCEDO_API_TOKEN",
-		"CERTBOT_DOMAIN",
-		"ACME_GATEWAY_DOMAIN",
-		"CERTBOT_VALIDATION",
-		"ACME_GATEWAY_TOKEN",
-	}
-	for _, key := range keys {
-		_ = os.Unsetenv(key)
-	}
-
-	if _, err := LoadExcedo(); err == nil {
-		t.Fatalf("expected error for missing variables")
-	}
-}
-
-func TestLoadBindDefaultsAndZoneFallback(t *testing.T) {
-	t.Setenv("CERTBOT_DOMAIN", "test.pebble-test.local")
-	t.Setenv("CERTBOT_VALIDATION", "txt-value")
-	t.Setenv("ACME_GATEWAY_FQDN", "_acme-challenge.test.pebble-test.local")
-	t.Setenv("BIND_DNS_SERVER", "127.0.0.1")
-
-	cfg, err := LoadBind()
-	if err != nil {
-		t.Fatalf("LoadBind() error = %v", err)
-	}
-	if cfg.DNSServer != "127.0.0.1:53" {
-		t.Fatalf("unexpected default DNS server: %s", cfg.DNSServer)
-	}
-	if cfg.DNSZone != "pebble-test.local" {
-		t.Fatalf("unexpected inferred zone: %s", cfg.DNSZone)
-	}
-	if cfg.TTL != 60 {
-		t.Fatalf("unexpected default TTL: %d", cfg.TTL)
-	}
-}
-
-func TestLoadBindTSIGPairValidation(t *testing.T) {
-	t.Setenv("CERTBOT_DOMAIN", "example.com")
-	t.Setenv("CERTBOT_VALIDATION", "txt")
-	t.Setenv("BIND_DNS_ZONE", "example.com")
-	t.Setenv("BIND_DNS_TSIG_KEY_NAME", "key-name")
-	t.Setenv("BIND_DNS_TSIG_SECRET", "")
-
-	if _, err := LoadBind(); err == nil {
-		t.Fatal("expected error when only one TSIG field is set")
+		t.Fatalf("FQDN = %q", cfg.FQDN)
 	}
 }

@@ -82,6 +82,22 @@ Build output:
 - `dist/bin/excedo-dns-deploy`
 - `dist/bin/excedo-dns-cleanup`
 
+## Testing
+
+- Run all tests with:
+
+```bash
+make test
+```
+
+- Integration coverage includes:
+  - Excedo deploy/cleanup idempotency against a local fake Excedo API server.
+  - BIND deploy/cleanup idempotency against a local in-process UDP DNS update responder.
+
+## Contributing New Providers
+
+See `docs/adding-dns-provider.md` for the provider implementation workflow, test requirements, and documentation checklist.
+
 ## Kubernetes InitContainer Example
 
 ```yaml

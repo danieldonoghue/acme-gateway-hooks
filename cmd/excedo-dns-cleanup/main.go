@@ -5,7 +5,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/danieldonoghue/acme-gateway-hooks/internal/env"
 	"github.com/danieldonoghue/acme-gateway-hooks/internal/excedo"
 	"github.com/danieldonoghue/acme-gateway-hooks/internal/logging"
 )
@@ -13,7 +12,7 @@ import (
 func main() {
 	logs := logging.New("excedo-dns-cleanup")
 
-	cfg, err := env.LoadExcedo()
+	cfg, err := excedo.LoadConfig()
 	if err != nil {
 		logs.Error.Error("invalid environment", "error", err.Error())
 		os.Exit(1)

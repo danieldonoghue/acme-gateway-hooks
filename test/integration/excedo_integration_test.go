@@ -11,7 +11,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/danieldonoghue/acme-gateway-hooks/internal/env"
 	"github.com/danieldonoghue/acme-gateway-hooks/internal/excedo"
 )
 
@@ -108,9 +107,9 @@ func TestDeployAndCleanupIdempotent(t *testing.T) {
 	t.Setenv("EXCEDO_API_URL", srv.URL)
 	t.Setenv("CERTBOT_DOMAIN", "example.com")
 	t.Setenv("CERTBOT_VALIDATION", "challenge-value")
-	cfg, err := env.LoadExcedo()
+	cfg, err := excedo.LoadConfig()
 	if err != nil {
-		t.Fatalf("LoadExcedo: %v", err)
+		t.Fatalf("LoadConfig: %v", err)
 	}
 
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
