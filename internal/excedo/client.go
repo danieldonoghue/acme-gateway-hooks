@@ -178,10 +178,11 @@ func (c *Client) doJSONRequest(ctx context.Context, method, endpoint string, bod
 
 func decodeJSONStrict(data []byte, dst any) error {
 	dec := json.NewDecoder(bytes.NewReader(data))
+	// Be lenient on unknown fields to tolerate API response drift.
 	if err := dec.Decode(dst); err != nil {
 		return err
 	}
-	if dec.More() {
+	if err := dec.Decode(&struct{}{}); err != io.EOF {
 		return fmt.Errorf("unexpected trailing JSON content")
 	}
 	return nil
