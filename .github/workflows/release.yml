@@ -10,7 +10,8 @@ permissions:
   packages: write
 
 jobs:
-  release:
+  artifacts:
+    name: Build release artifacts
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -20,34 +21,78 @@ jobs:
           cache: true
       - name: Build artifacts
         run: make release-artifacts
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-artifacts
+          path: dist/release/*.tar.gz
+          if-no-files-found: error
+
+  docker-build:
+    name: Docker build (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            platform: linux/amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v7
       - name: Login to GHCR
         uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-      - name: Docker metadata
-        id: meta
-        uses: docker/metadata-action@v6
-        with:
-          images: ghcr.io/${{ github.repository_owner }}/acme-gateway-hooks
-          tags: |
-            type=raw,value=${{ github.ref_name }}
-            type=raw,value=latest
-      - name: Build and push multi-arch image
+      - name: Build and push image
         uses: docker/build-push-action@v7
         with:
           context: .
           push: true
-          platforms: linux/amd64,linux/arm64
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          platforms: ${{ matrix.platform }}
+          tags: ghcr.io/${{ github.repository_owner }}/acme-gateway-hooks:build-${{ github.sha }}-${{ matrix.arch }}
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-to: type=gha,mode=max,scope=release-${{ matrix.arch }}
+
+  docker-manifest:
+    name: Docker manifest
+    needs: docker-build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Login to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Create and push multi-arch manifest
+        run: |
+          IMAGE="ghcr.io/${{ github.repository_owner }}/acme-gateway-hooks"
+          docker buildx imagetools create \
+            -t "${IMAGE}:${GITHUB_REF_NAME}" \
+            -t "${IMAGE}:latest" \
+            "${IMAGE}:build-${GITHUB_SHA}-amd64" \
+            "${IMAGE}:build-${GITHUB_SHA}-arm64"
+
+  release:
+    name: Create GitHub release
+    needs: [artifacts, docker-manifest]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download release artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: release-artifacts
+          path: dist/release
       - name: Create GitHub release
         uses: softprops/action-gh-release@v3
         with:

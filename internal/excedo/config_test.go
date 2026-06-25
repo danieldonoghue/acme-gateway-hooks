@@ -23,6 +23,9 @@ func TestLoadConfigDefaultsAndFallbacks(t *testing.T) {
 	if cfg.FQDN != "_acme-challenge.example.com" {
 		t.Fatalf("unexpected fqdn: %s", cfg.FQDN)
 	}
+	if cfg.DNSZone != "example.com" {
+		t.Fatalf("unexpected inferred zone: %s", cfg.DNSZone)
+	}
 }
 
 func TestLoadConfigRequiredVars(t *testing.T) {
@@ -49,5 +52,70 @@ func TestLoadConfigExplicitFQDNNormalized(t *testing.T) {
 	}
 	if cfg.FQDN != "_acme-challenge.example.com" {
 		t.Fatalf("unexpected fqdn normalization: %s", cfg.FQDN)
+	}
+}
+
+func TestLoadConfigDNSZoneOverrideNormalized(t *testing.T) {
+	t.Setenv("EXCEDO_API_TOKEN", "token")
+	t.Setenv("CERTBOT_DOMAIN", "example.com")
+	t.Setenv("CERTBOT_VALIDATION", "txt")
+	t.Setenv("EXCEDO_DNS_ZONE", "Dpd-Test.AuroraTeleq.Com.")
+
+	cfg, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig() error = %v", err)
+	}
+	if cfg.DNSZone != "dpd-test.aurorateleq.com" {
+		t.Fatalf("unexpected zone normalization: %s", cfg.DNSZone)
+	}
+}
+
+func TestLoadConfigDNSZoneFallbackAlias(t *testing.T) {
+	t.Setenv("EXCEDO_API_TOKEN", "token")
+	t.Setenv("CERTBOT_DOMAIN", "example.com")
+	t.Setenv("CERTBOT_VALIDATION", "txt")
+	t.Setenv("EXCEDO_DNS_ZONE", "")
+	t.Setenv("EXCEDO_ZONE", "")
+	t.Setenv("EXCEDO_DOMAINNAME", "dpd-test.aurorateleq.com")
+
+	cfg, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig() error = %v", err)
+	}
+	if cfg.DNSZone != "dpd-test.aurorateleq.com" {
+		t.Fatalf("unexpected zone from alias: %s", cfg.DNSZone)
+	}
+}
+
+func TestLoadConfigInfersParentZoneFromSubdomain(t *testing.T) {
+	t.Setenv("EXCEDO_API_TOKEN", "token")
+	t.Setenv("CERTBOT_DOMAIN", "dpd-test.aurorateleq.com")
+	t.Setenv("CERTBOT_VALIDATION", "txt")
+	t.Setenv("EXCEDO_DNS_ZONE", "")
+	t.Setenv("EXCEDO_ZONE", "")
+	t.Setenv("EXCEDO_DOMAINNAME", "")
+	t.Setenv("ACME_GATEWAY_DNS_ZONE", "")
+
+	cfg, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig() error = %v", err)
+	}
+	if cfg.DNSZone != "aurorateleq.com" {
+		t.Fatalf("unexpected parent zone inference: %s", cfg.DNSZone)
+	}
+}
+
+func TestLoadConfigExplicitZoneWinsOverInferredParentZone(t *testing.T) {
+	t.Setenv("EXCEDO_API_TOKEN", "token")
+	t.Setenv("CERTBOT_DOMAIN", "dpd-test.aurorateleq.com")
+	t.Setenv("CERTBOT_VALIDATION", "txt")
+	t.Setenv("EXCEDO_DNS_ZONE", "dpd-test.aurorateleq.com")
+
+	cfg, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig() error = %v", err)
+	}
+	if cfg.DNSZone != "dpd-test.aurorateleq.com" {
+		t.Fatalf("unexpected explicit zone: %s", cfg.DNSZone)
 	}
 }
