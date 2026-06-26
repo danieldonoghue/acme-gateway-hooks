@@ -20,7 +20,8 @@ FROM busybox:1.36.1-musl AS toolbox
 RUN mkdir -p /toolbox/bin && \
     cp /bin/busybox /toolbox/bin/busybox && \
     ln -s busybox /toolbox/bin/sh && \
-    ln -s busybox /toolbox/bin/cp
+    ln -s busybox /toolbox/bin/cp && \
+    ln -s busybox /toolbox/bin/chmod
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=builder --chmod=0555 /out/bind-dns-deploy /usr/local/bin/bind-dns-deploy
