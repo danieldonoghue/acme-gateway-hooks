@@ -35,7 +35,7 @@ func TestDeploy(t *testing.T) {
 		ZoneName:       "example.com",
 	}
 
-	err := deployWithMock(context.Background(), logger, mockClient, cfg)
+	err := Deploy(context.Background(), logger, mockClient, cfg)
 	if err != nil {
 		t.Fatalf("Deploy failed: %v", err)
 	}
@@ -80,7 +80,7 @@ func TestCleanup(t *testing.T) {
 		ZoneName:       "example.com",
 	}
 
-	err := cleanupWithMock(context.Background(), logger, mockClient, cfg)
+	err := Cleanup(context.Background(), logger, mockClient, cfg)
 	if err != nil {
 		t.Fatalf("Cleanup failed: %v", err)
 	}
@@ -111,7 +111,7 @@ func TestCleanupNoRecords(t *testing.T) {
 	}
 
 	// Should not error when no records found
-	err := cleanupWithMock(context.Background(), logger, mockClient, cfg)
+	err := Cleanup(context.Background(), logger, mockClient, cfg)
 	if err != nil {
 		t.Fatalf("Cleanup should succeed with no records, got error: %v", err)
 	}
@@ -209,7 +209,7 @@ func TestNormalizeTXTValue(t *testing.T) {
 	}
 }
 
-// Mock client for testing
+// MockClient implements the Azure client interface for testing
 type MockClient struct {
 	createFn func(context.Context, string, string, string, string, string, int32) (*RecordSetResponse, error)
 	listFn   func(context.Context, string, string, string, string) ([]string, error)
@@ -234,62 +234,5 @@ func (m *MockClient) DeleteTXTRecord(ctx context.Context, sub, rg, zone, name, v
 	if m.deleteFn != nil {
 		return m.deleteFn(ctx, sub, rg, zone, name, value)
 	}
-	return nil
-}
-
-// Wrapper functions that use mock client
-func deployWithMock(ctx context.Context, logger *slog.Logger, client *MockClient, cfg Config) error {
-	recordName := RelativeRecordName(cfg.FQDN, cfg.ZoneName)
-
-	resp, err := client.CreateTXTRecord(ctx, cfg.SubscriptionID, cfg.ResourceGroup, cfg.ZoneName, recordName, cfg.Validation, 120)
-	if err != nil {
-		return err
-	}
-
-	logger.Info("deployed dns-01 TXT record",
-		"fqdn", cfg.FQDN,
-		"zone", cfg.ZoneName,
-		"record_name", recordName,
-		"record_id", resp.ID,
-	)
-	return nil
-}
-
-func cleanupWithMock(ctx context.Context, logger *slog.Logger, client *MockClient, cfg Config) error {
-	recordName := RelativeRecordName(cfg.FQDN, cfg.ZoneName)
-
-	records, err := client.ListTXTRecords(ctx, cfg.SubscriptionID, cfg.ResourceGroup, cfg.ZoneName, recordName)
-	if err != nil {
-		logger.Warn("cleanup could not list records; returning success for idempotency",
-			"zone", cfg.ZoneName,
-			"record_name", recordName,
-			"error", err.Error(),
-		)
-		return nil
-	}
-
-	matched := findMatchingRecords(records, cfg.Validation)
-	if len(matched) == 0 {
-		logger.Info("no matching TXT records found; cleanup is idempotent",
-			"fqdn", cfg.FQDN,
-			"zone", cfg.ZoneName,
-		)
-		return nil
-	}
-
-	for _, recordID := range matched {
-		if err := client.DeleteTXTRecord(ctx, cfg.SubscriptionID, cfg.ResourceGroup, cfg.ZoneName, recordName, recordID); err != nil {
-			logger.Warn("delete record request failed; continuing",
-				"record_id", recordID,
-				"error", err.Error(),
-			)
-			continue
-		}
-	}
-
-	logger.Info("cleanup completed",
-		"fqdn", cfg.FQDN,
-		"deleted_candidates", len(matched),
-	)
 	return nil
 }

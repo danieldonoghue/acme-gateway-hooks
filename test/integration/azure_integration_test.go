@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -91,13 +90,7 @@ func (f *fakeAzure) handler() http.Handler {
 	return mux
 }
 
-func TestAzureDNSDeployCleanup(t *testing.T) {
-	fake := newFakeAzure()
-	server := httptest.NewServer(fake.handler())
-	defer server.Close()
-
-	_ = server.URL
-
+func TestAzureConfigValidation(t *testing.T) {
 	cfg := azure.Config{
 		CommonConfig: env.CommonConfig{
 			Domain:     "app.test.example.com",

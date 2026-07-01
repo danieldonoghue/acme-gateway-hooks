@@ -3,6 +3,7 @@ package azure
 import (
 	"bytes"
 	"context"
+	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
@@ -28,6 +29,7 @@ type Client struct {
 	secret   string
 	certPath string
 	certPass string
+	baseURL  string
 }
 
 type RecordSetResponse struct {
@@ -62,6 +64,7 @@ func NewClient(ctx context.Context, cfg Config) (*Client, error) {
 		secret:   cfg.ClientSecret,
 		certPath: cfg.ClientCertPath,
 		certPass: cfg.ClientCertPassword,
+		baseURL:  "https://management.azure.com",
 	}
 
 	if err := client.refreshToken(ctx); err != nil {
@@ -143,22 +146,26 @@ func (c *Client) createJWT() (string, error) {
 	}
 
 	var privateKey *rsa.PrivateKey
-	if c.certPass != "" {
+
+	// Try PKCS12 first (with or without password)
+	if c.certPass != "" || isPKCS12(certData) {
 		priv, _, err := pkcs12.Decode(certData, c.certPass)
-		if err != nil {
-			return "", fmt.Errorf("failed to decode PKCS12 certificate: %w", err)
+		if err == nil {
+			var ok bool
+			privateKey, ok = priv.(*rsa.PrivateKey)
+			if !ok {
+				return "", fmt.Errorf("certificate does not contain RSA private key")
+			}
 		}
-		var ok bool
-		privateKey, ok = priv.(*rsa.PrivateKey)
-		if !ok {
-			return "", fmt.Errorf("certificate does not contain RSA private key")
-		}
-	} else {
+	}
+
+	// If PKCS12 didn't work or wasn't tried, try PEM-encoded keys
+	if privateKey == nil {
 		priv, err := x509.ParsePKCS8PrivateKey(certData)
 		if err != nil {
 			priv, err = x509.ParsePKCS1PrivateKey(certData)
 			if err != nil {
-				return "", fmt.Errorf("failed to parse private key: %w", err)
+				return "", fmt.Errorf("failed to parse private key (tried PKCS12, PKCS8, PKCS1): %w", err)
 			}
 		}
 		var ok bool
@@ -194,7 +201,7 @@ func (c *Client) createJWT() (string, error) {
 	message := []byte(headerB64 + "." + claimsB64)
 
 	hash := sha256.Sum256(message)
-	signature, err := rsa.SignPKCS1v15(rand.Reader, privateKey, 0, hash[:])
+	signature, err := rsa.SignPKCS1v15(rand.Reader, privateKey, crypto.SHA256, hash[:])
 	if err != nil {
 		return "", fmt.Errorf("failed to sign JWT: %w", err)
 	}
@@ -204,19 +211,49 @@ func (c *Client) createJWT() (string, error) {
 	return headerB64 + "." + claimsB64 + "." + signatureB64, nil
 }
 
+// isPKCS12 checks if data looks like PKCS12 by magic bytes
+func isPKCS12(data []byte) bool {
+	if len(data) < 2 {
+		return false
+	}
+	// PKCS12 starts with SEQUENCE tag (0x30) or can start with 0xfe 0xff (UTF-16 BOM)
+	return (data[0] == 0x30 && len(data) > 3 && data[1] > 0x80) || (data[0] == 0xfe && data[1] == 0xff)
+}
+
 func (c *Client) CreateTXTRecord(ctx context.Context, subscriptionID, resourceGroup, zoneName, recordName, txtValue string, ttl int32) (*RecordSetResponse, error) {
 	if err := c.ensureValidToken(ctx); err != nil {
 		return nil, err
 	}
 
+	// Get existing values to avoid overwriting
+	existing, err := c.ListTXTRecords(ctx, subscriptionID, resourceGroup, zoneName, recordName)
+	if err != nil && !strings.Contains(err.Error(), "404") {
+		return nil, err
+	}
+
+	// Merge with existing values (deduplicate)
+	valueSet := make(map[string]bool)
+	for _, v := range existing {
+		valueSet[v] = true
+	}
+	valueSet[txtValue] = true
+
+	var values []string
+	for v := range valueSet {
+		values = append(values, v)
+	}
+
+	// Create TXT records array
+	var txtRecords []TXTRecord
+	if len(values) > 0 {
+		// Group all values into one record (Azure TXT records contain arrays of strings)
+		txtRecords = []TXTRecord{{Value: values}}
+	}
+
 	payload := RecordSetPayload{
 		Properties: RecordSetProperties{
-			TTL: ttl,
-			TxtRecords: []TXTRecord{
-				{
-					Value: []string{txtValue},
-				},
-			},
+			TTL:        ttl,
+			TxtRecords: txtRecords,
 		},
 	}
 
@@ -225,7 +262,7 @@ func (c *Client) CreateTXTRecord(ctx context.Context, subscriptionID, resourceGr
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	url := fmt.Sprintf("https://management.azure.com/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/dnszones/%s/TXT/%s?api-version=2018-05-01", subscriptionID, resourceGroup, zoneName, recordName)
+	url := fmt.Sprintf("%s/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/dnszones/%s/TXT/%s?api-version=2018-05-01", c.baseURL, subscriptionID, resourceGroup, zoneName, recordName)
 	req, err := http.NewRequestWithContext(ctx, "PUT", url, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
@@ -262,7 +299,7 @@ func (c *Client) ListTXTRecords(ctx context.Context, subscriptionID, resourceGro
 		return nil, err
 	}
 
-	url := fmt.Sprintf("https://management.azure.com/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/dnszones/%s/TXT/%s?api-version=2018-05-01", subscriptionID, resourceGroup, zoneName, recordName)
+	url := fmt.Sprintf("%s/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/dnszones/%s/TXT/%s?api-version=2018-05-01", c.baseURL, subscriptionID, resourceGroup, zoneName, recordName)
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
@@ -304,24 +341,79 @@ func (c *Client) DeleteTXTRecord(ctx context.Context, subscriptionID, resourceGr
 		return err
 	}
 
-	url := fmt.Sprintf("https://management.azure.com/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/dnszones/%s/TXT/%s?api-version=2018-05-01", subscriptionID, resourceGroup, zoneName, recordName)
-	req, err := http.NewRequestWithContext(ctx, "DELETE", url, nil)
+	// Get existing values
+	existing, err := c.ListTXTRecords(ctx, subscriptionID, resourceGroup, zoneName, recordName)
+	if err != nil {
+		// 404 is OK - record doesn't exist
+		if strings.Contains(err.Error(), "404") {
+			return nil
+		}
+		return err
+	}
+
+	// Filter out the value to delete
+	var remaining []string
+	for _, v := range existing {
+		if v != value {
+			remaining = append(remaining, v)
+		}
+	}
+
+	// If no values left, delete the entire recordset
+	if len(remaining) == 0 {
+		url := fmt.Sprintf("%s/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/dnszones/%s/TXT/%s?api-version=2018-05-01", c.baseURL, subscriptionID, resourceGroup, zoneName, recordName)
+		req, err := http.NewRequestWithContext(ctx, "DELETE", url, nil)
+		if err != nil {
+			return fmt.Errorf("failed to create request: %w", err)
+		}
+
+		req.Header.Set("Authorization", "Bearer "+c.token)
+
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return fmt.Errorf("request failed: %w", err)
+		}
+		defer resp.Body.Close()
+
+		// 404 is acceptable if record already deleted
+		if resp.StatusCode == 404 {
+			return nil
+		}
+
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			body, _ := io.ReadAll(resp.Body)
+			return fmt.Errorf("Azure API returned status %d: %s", resp.StatusCode, string(body))
+		}
+		return nil
+	}
+
+	// Otherwise, update the recordset with remaining values
+	payload := RecordSetPayload{
+		Properties: RecordSetProperties{
+			TTL:        120,
+			TxtRecords: []TXTRecord{{Value: remaining}},
+		},
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	url := fmt.Sprintf("%s/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/dnszones/%s/TXT/%s?api-version=2018-05-01", c.baseURL, subscriptionID, resourceGroup, zoneName, recordName)
+	req, err := http.NewRequestWithContext(ctx, "PUT", url, bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 
 	req.Header.Set("Authorization", "Bearer "+c.token)
+	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("request failed: %w", err)
 	}
 	defer resp.Body.Close()
-
-	// 404 is acceptable if record already deleted
-	if resp.StatusCode == 404 {
-		return nil
-	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(resp.Body)

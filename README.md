@@ -220,7 +220,7 @@ dns_hook:
 
 - SemVer tags are published as `ghcr.io/danieldonoghue/acme-gateway-hooks:vX.Y.Z`.
 - `latest` tracks the newest released SemVer tag.
-- versions are pinned to the minimum acme-gateway version required to suport these hooks.
+- Versions are pinned to the minimum acme-gateway version required to support these hooks.
 
 ## Security Notes
 

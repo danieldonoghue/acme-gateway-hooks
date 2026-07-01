@@ -7,7 +7,13 @@ import (
 	"strings"
 )
 
-func Deploy(ctx context.Context, logger *slog.Logger, client *Client, cfg Config) error {
+type ClientInterface interface {
+	CreateTXTRecord(ctx context.Context, sub, rg, zone, name, value string, ttl int32) (*RecordSetResponse, error)
+	ListTXTRecords(ctx context.Context, sub, rg, zone, name string) ([]string, error)
+	DeleteTXTRecord(ctx context.Context, sub, rg, zone, name, value string) error
+}
+
+func Deploy(ctx context.Context, logger *slog.Logger, client ClientInterface, cfg Config) error {
 	recordName := RelativeRecordName(cfg.FQDN, cfg.ZoneName)
 
 	resp, err := client.CreateTXTRecord(ctx, cfg.SubscriptionID, cfg.ResourceGroup, cfg.ZoneName, recordName, cfg.Validation, 120)
@@ -24,7 +30,7 @@ func Deploy(ctx context.Context, logger *slog.Logger, client *Client, cfg Config
 	return nil
 }
 
-func Cleanup(ctx context.Context, logger *slog.Logger, client *Client, cfg Config) error {
+func Cleanup(ctx context.Context, logger *slog.Logger, client ClientInterface, cfg Config) error {
 	recordName := RelativeRecordName(cfg.FQDN, cfg.ZoneName)
 
 	// List records to find matching ones
