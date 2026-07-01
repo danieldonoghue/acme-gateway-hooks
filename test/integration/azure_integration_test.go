@@ -26,6 +26,12 @@ func newFakeAzureDNS() *fakeAzureDNS {
 
 func (f *fakeAzureDNS) handler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/subscriptions/") && !strings.Contains(r.URL.Path, "/TXT/") && !strings.Contains(r.URL.Path, "/dnszones/") {
+			w.Header().Set("WWW-Authenticate", `Bearer authorization_uri="https://login.microsoftonline.com/test-tenant"`)
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+
 		if strings.Contains(r.URL.Path, "oauth2") {
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(map[string]interface{}{
@@ -125,7 +131,6 @@ func TestAzureDeployAndCleanupIdempotent(t *testing.T) {
 	t.Setenv("AZURE_SUBSCRIPTION_ID", "test-sub")
 	t.Setenv("AZURE_RESOURCE_GROUP", "test-rg")
 	t.Setenv("AZURE_ZONE_NAME", "test.example.com")
-	t.Setenv("AZURE_TENANT_ID", "test-tenant")
 	t.Setenv("AZURE_CLIENT_ID", "test-client")
 	t.Setenv("AZURE_CLIENT_SECRET", "test-secret")
 	t.Setenv("AZURE_BASE_URL", srv.URL)

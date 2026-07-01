@@ -94,22 +94,6 @@ func TestConfigValidate(t *testing.T) {
 			errMsg:  "AZURE_ZONE_NAME",
 		},
 		{
-			name: "missing tenant ID",
-			cfg: Config{
-				CommonConfig: env.CommonConfig{
-					Domain:     "test.example.com",
-					Validation: "challenge-value",
-				},
-				SubscriptionID: "sub123",
-				ResourceGroup:  "rg1",
-				ZoneName:       "example.com",
-				ClientID:       "client123",
-				ClientSecret:   "secret123",
-			},
-			wantErr: true,
-			errMsg:  "AZURE_TENANT_ID",
-		},
-		{
 			name: "missing client ID",
 			cfg: Config{
 				CommonConfig: env.CommonConfig{

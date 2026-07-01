@@ -59,6 +59,38 @@ type RecordSetResp struct {
 	Properties RecordSetProperties `json:"properties"`
 }
 
+func discoverTenantID(ctx context.Context, baseURL, subscriptionID string) (string, error) {
+	endpoint := fmt.Sprintf("%s/subscriptions/%s?api-version=2022-12-01", baseURL, subscriptionID)
+	req, err := http.NewRequestWithContext(ctx, "GET", endpoint, nil)
+	if err != nil {
+		return "", err
+	}
+
+	resp, err := (&http.Client{Timeout: 10 * time.Second}).Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	authHeader := resp.Header.Get("WWW-Authenticate")
+	if authHeader == "" {
+		return "", fmt.Errorf("no WWW-Authenticate header in response (status %d)", resp.StatusCode)
+	}
+
+	const marker = "authorization_uri=\"https://login.microsoftonline.com/"
+	idx := strings.Index(authHeader, marker)
+	if idx < 0 {
+		return "", fmt.Errorf("could not parse tenant from WWW-Authenticate: %s", authHeader)
+	}
+	rest := authHeader[idx+len(marker):]
+	end := strings.IndexAny(rest, "\"/")
+	if end <= 0 {
+		return "", fmt.Errorf("could not parse tenant from WWW-Authenticate: %s", authHeader)
+	}
+
+	return rest[:end], nil
+}
+
 func NewClient(ctx context.Context, cfg Config) (*Client, error) {
 	baseURL := "https://management.azure.com"
 	if cfg.BaseURL != "" {

@@ -44,7 +44,7 @@ Azure DNS variables:
 - Required `AZURE_SUBSCRIPTION_ID`
 - Required `AZURE_RESOURCE_GROUP`
 - Required `AZURE_ZONE_NAME` (the delegated DNS zone, e.g., `challenges.example.com`)
-- Required `AZURE_TENANT_ID`
+- Optional `AZURE_TENANT_ID` (auto-discovered from subscription if not set)
 - Required `AZURE_CLIENT_ID`
 - **Exactly one** of:
   - `AZURE_CLIENT_SECRET` (service principal secret)
