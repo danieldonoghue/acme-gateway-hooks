@@ -162,9 +162,21 @@ func (c *Client) createJWT() (string, error) {
 
 	// If PKCS12 didn't work or wasn't tried, try PEM then raw DER
 	if privateKey == nil {
-		derBytes := certData
-		if block, _ := pem.Decode(certData); block != nil {
-			derBytes = block.Bytes
+		var derBytes []byte
+		rest := certData
+		for {
+			var block *pem.Block
+			block, rest = pem.Decode(rest)
+			if block == nil {
+				break
+			}
+			if strings.Contains(block.Type, "PRIVATE KEY") {
+				derBytes = block.Bytes
+				break
+			}
+		}
+		if derBytes == nil {
+			derBytes = certData
 		}
 
 		priv, err := x509.ParsePKCS8PrivateKey(derBytes)
@@ -187,7 +199,6 @@ func (c *Client) createJWT() (string, error) {
 	header := map[string]string{
 		"alg": "RS256",
 		"typ": "JWT",
-		"kid": c.clientID,
 	}
 
 	claims := map[string]interface{}{
@@ -233,7 +244,7 @@ func (c *Client) CreateTXTRecord(ctx context.Context, subscriptionID, resourceGr
 
 	// Get existing values to avoid overwriting
 	existing, err := c.ListTXTRecords(ctx, subscriptionID, resourceGroup, zoneName, recordName)
-	if err != nil && !strings.Contains(err.Error(), "404") {
+	if err != nil {
 		return nil, err
 	}
 
