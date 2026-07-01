@@ -42,6 +42,8 @@ func (c *Config) Validate() error {
 	if c.ZoneName == "" {
 		return fmt.Errorf("missing required environment variable AZURE_ZONE_NAME")
 	}
+	c.ZoneName = env.NormalizeFQDN(c.ZoneName)
+
 	if c.ClientID == "" {
 		return fmt.Errorf("missing required environment variable AZURE_CLIENT_ID")
 	}

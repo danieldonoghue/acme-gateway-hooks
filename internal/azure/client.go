@@ -202,12 +202,13 @@ func (c *Client) createJWT() (string, error) {
 	// Try PKCS12 first (with or without password)
 	if c.certPass != "" || isPKCS12(certData) {
 		priv, _, err := pkcs12.Decode(certData, c.certPass)
-		if err == nil {
-			var ok bool
-			privateKey, ok = priv.(*rsa.PrivateKey)
-			if !ok {
-				return "", fmt.Errorf("certificate does not contain RSA private key")
-			}
+		if err != nil {
+			return "", fmt.Errorf("failed to decode PKCS12 certificate: %w", err)
+		}
+		var ok bool
+		privateKey, ok = priv.(*rsa.PrivateKey)
+		if !ok {
+			return "", fmt.Errorf("certificate does not contain RSA private key")
 		}
 	}
 
