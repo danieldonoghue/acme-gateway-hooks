@@ -50,7 +50,7 @@ Azure DNS variables:
   - `AZURE_CLIENT_SECRET` (service principal secret)
   - `AZURE_CLIENT_CERTIFICATE_PATH` (path to PKCS12 or PEM certificate)
 - Optional `AZURE_CLIENT_CERTIFICATE_PASSWORD` (only if certificate is password-protected)
-- Optional `AZURE_BASE_URL` (override ARM management endpoint; intended for testing and sovereign clouds)
+- Optional `AZURE_BASE_URL` (override ARM management **and** token endpoints; intended for testing)
 
 ## Local Usage
 

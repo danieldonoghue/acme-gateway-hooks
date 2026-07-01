@@ -11,7 +11,7 @@ type Config struct {
 	SubscriptionID     string `env:"AZURE_SUBSCRIPTION_ID,required"`
 	ResourceGroup      string `env:"AZURE_RESOURCE_GROUP,required"`
 	ZoneName           string `env:"AZURE_ZONE_NAME,required"`
-	TenantID           string `env:"AZURE_TENANT_ID,required"`
+	TenantID           string `env:"AZURE_TENANT_ID"`
 	ClientID           string `env:"AZURE_CLIENT_ID,required"`
 	ClientSecret       string `env:"AZURE_CLIENT_SECRET"`
 	ClientCertPath     string `env:"AZURE_CLIENT_CERTIFICATE_PATH"`
@@ -41,9 +41,6 @@ func (c *Config) Validate() error {
 	}
 	if c.ZoneName == "" {
 		return fmt.Errorf("missing required environment variable AZURE_ZONE_NAME")
-	}
-	if c.TenantID == "" {
-		return fmt.Errorf("missing required environment variable AZURE_TENANT_ID")
 	}
 	if c.ClientID == "" {
 		return fmt.Errorf("missing required environment variable AZURE_CLIENT_ID")

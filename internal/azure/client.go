@@ -65,9 +65,18 @@ func NewClient(ctx context.Context, cfg Config) (*Client, error) {
 		baseURL = cfg.BaseURL
 	}
 
+	tenantID := cfg.TenantID
+	if tenantID == "" {
+		discovered, err := discoverTenantID(ctx, baseURL, cfg.SubscriptionID)
+		if err != nil {
+			return nil, fmt.Errorf("AZURE_TENANT_ID not set and auto-discovery failed: %w", err)
+		}
+		tenantID = discovered
+	}
+
 	client := &Client{
 		httpClient: &http.Client{Timeout: 30 * time.Second},
-		tenantID:   cfg.TenantID,
+		tenantID:   tenantID,
 		clientID:   cfg.ClientID,
 		secret:     cfg.ClientSecret,
 		certPath:   cfg.ClientCertPath,
@@ -247,6 +256,42 @@ func isPKCS12(data []byte) bool {
 	return (data[0] == 0x30 && len(data) > 3 && data[1] > 0x80) || (data[0] == 0xfe && data[1] == 0xff)
 }
 
+func (c *Client) getTXTRecordSet(ctx context.Context, subscriptionID, resourceGroup, zoneName, recordName string) (*RecordSetResp, error) {
+	if err := c.ensureValidToken(ctx); err != nil {
+		return nil, err
+	}
+
+	endpoint := fmt.Sprintf("%s/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/dnszones/%s/TXT/%s?api-version=2018-05-01", c.baseURL, subscriptionID, resourceGroup, zoneName, recordName)
+	req, err := http.NewRequestWithContext(ctx, "GET", endpoint, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+c.token)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == 404 {
+		return nil, nil
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("Azure API returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var respData RecordSetResp
+	if err := json.NewDecoder(resp.Body).Decode(&respData); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	return &respData, nil
+}
+
 func (c *Client) CreateTXTRecord(ctx context.Context, subscriptionID, resourceGroup, zoneName, recordName, txtValue string, ttl int32) (*RecordSetResponse, error) {
 	if err := c.ensureValidToken(ctx); err != nil {
 		return nil, err
@@ -321,41 +366,16 @@ func (c *Client) CreateTXTRecord(ctx context.Context, subscriptionID, resourceGr
 }
 
 func (c *Client) ListTXTRecords(ctx context.Context, subscriptionID, resourceGroup, zoneName, recordName string) ([]string, error) {
-	if err := c.ensureValidToken(ctx); err != nil {
+	rs, err := c.getTXTRecordSet(ctx, subscriptionID, resourceGroup, zoneName, recordName)
+	if err != nil {
 		return nil, err
 	}
-
-	endpoint := fmt.Sprintf("%s/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/dnszones/%s/TXT/%s?api-version=2018-05-01", c.baseURL, subscriptionID, resourceGroup, zoneName, recordName)
-	req, err := http.NewRequestWithContext(ctx, "GET", endpoint, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	req.Header.Set("Authorization", "Bearer "+c.token)
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	// 404 is expected if record doesn't exist
-	if resp.StatusCode == 404 {
+	if rs == nil {
 		return []string{}, nil
 	}
 
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("Azure API returned status %d: %s", resp.StatusCode, string(body))
-	}
-
-	var respData RecordSetResp
-	if err := json.NewDecoder(resp.Body).Decode(&respData); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %w", err)
-	}
-
 	var values []string
-	for _, txtRec := range respData.Properties.TxtRecords {
+	for _, txtRec := range rs.Properties.TxtRecords {
 		values = append(values, strings.Join(txtRec.Value, ""))
 	}
 
@@ -367,15 +387,17 @@ func (c *Client) DeleteTXTRecord(ctx context.Context, subscriptionID, resourceGr
 		return err
 	}
 
-	// Get existing values (ListTXTRecords returns empty slice on 404)
-	existing, err := c.ListTXTRecords(ctx, subscriptionID, resourceGroup, zoneName, recordName)
+	rs, err := c.getTXTRecordSet(ctx, subscriptionID, resourceGroup, zoneName, recordName)
 	if err != nil {
 		return err
 	}
+	if rs == nil {
+		return nil
+	}
 
-	// Filter out the value to delete
 	var remaining []string
-	for _, v := range existing {
+	for _, txtRec := range rs.Properties.TxtRecords {
+		v := strings.Join(txtRec.Value, "")
 		if v != value {
 			remaining = append(remaining, v)
 		}
@@ -417,7 +439,7 @@ func (c *Client) DeleteTXTRecord(ctx context.Context, subscriptionID, resourceGr
 
 	payload := RecordSetPayload{
 		Properties: RecordSetProperties{
-			TTL:        120,
+			TTL:        rs.Properties.TTL,
 			TxtRecords: remainingRecords,
 		},
 	}
