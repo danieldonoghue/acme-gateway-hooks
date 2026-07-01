@@ -16,6 +16,7 @@ type Config struct {
 	ClientSecret       string `env:"AZURE_CLIENT_SECRET"`
 	ClientCertPath     string `env:"AZURE_CLIENT_CERTIFICATE_PATH"`
 	ClientCertPassword string `env:"AZURE_CLIENT_CERTIFICATE_PASSWORD"`
+	BaseURL            string `env:"AZURE_BASE_URL"`
 }
 
 func LoadConfig() (Config, error) {

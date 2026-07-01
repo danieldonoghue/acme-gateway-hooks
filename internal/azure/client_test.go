@@ -52,11 +52,12 @@ func TestClientCreateTXTRecord(t *testing.T) {
 	defer server.Close()
 
 	client := &Client{
-		token:    "test-token",
-		tokenExp: time.Now().Add(1 * time.Hour),
-		tenantID: "tenant",
-		clientID: "client",
-		baseURL:  server.URL,
+		httpClient: &http.Client{},
+		token:      "test-token",
+		tokenExp:   time.Now().Add(1 * time.Hour),
+		tenantID:   "tenant",
+		clientID:   "client",
+		baseURL:    server.URL,
 	}
 
 	resp, err := client.CreateTXTRecord(context.Background(), "sub", "rg", "zone", "test", "challenge-value", 120)
@@ -100,11 +101,12 @@ func TestClientListTXTRecords(t *testing.T) {
 	defer server.Close()
 
 	client := &Client{
-		token:    "test-token",
-		tokenExp: time.Now().Add(1 * time.Hour),
-		tenantID: "tenant",
-		clientID: "client",
-		baseURL:  server.URL,
+		httpClient: &http.Client{},
+		token:      "test-token",
+		tokenExp:   time.Now().Add(1 * time.Hour),
+		tenantID:   "tenant",
+		clientID:   "client",
+		baseURL:    server.URL,
 	}
 
 	records, err := client.ListTXTRecords(context.Background(), "sub", "rg", "zone", "test")
@@ -138,11 +140,12 @@ func TestClientListTXTRecordsNotFound(t *testing.T) {
 	defer server.Close()
 
 	client := &Client{
-		token:    "test-token",
-		tokenExp: time.Now().Add(1 * time.Hour),
-		tenantID: "tenant",
-		clientID: "client",
-		baseURL:  server.URL,
+		httpClient: &http.Client{},
+		token:      "test-token",
+		tokenExp:   time.Now().Add(1 * time.Hour),
+		tenantID:   "tenant",
+		clientID:   "client",
+		baseURL:    server.URL,
 	}
 
 	records, err := client.ListTXTRecords(context.Background(), "sub", "rg", "zone", "test")
@@ -190,11 +193,12 @@ func TestClientDeleteTXTRecord(t *testing.T) {
 	defer server.Close()
 
 	client := &Client{
-		token:    "test-token",
-		tokenExp: time.Now().Add(1 * time.Hour),
-		tenantID: "tenant",
-		clientID: "client",
-		baseURL:  server.URL,
+		httpClient: &http.Client{},
+		token:      "test-token",
+		tokenExp:   time.Now().Add(1 * time.Hour),
+		tenantID:   "tenant",
+		clientID:   "client",
+		baseURL:    server.URL,
 	}
 
 	err := client.DeleteTXTRecord(context.Background(), "sub", "rg", "zone", "test", "value")
@@ -229,11 +233,12 @@ func TestClientDeleteTXTRecordNotFound(t *testing.T) {
 	defer server.Close()
 
 	client := &Client{
-		token:    "test-token",
-		tokenExp: time.Now().Add(1 * time.Hour),
-		tenantID: "tenant",
-		clientID: "client",
-		baseURL:  server.URL,
+		httpClient: &http.Client{},
+		token:      "test-token",
+		tokenExp:   time.Now().Add(1 * time.Hour),
+		tenantID:   "tenant",
+		clientID:   "client",
+		baseURL:    server.URL,
 	}
 
 	// Should not error on 404
@@ -284,11 +289,12 @@ func TestClientDeleteTXTRecordPartialRemoval(t *testing.T) {
 	defer server.Close()
 
 	client := &Client{
-		token:    "test-token",
-		tokenExp: time.Now().Add(1 * time.Hour),
-		tenantID: "tenant",
-		clientID: "client",
-		baseURL:  server.URL,
+		httpClient: &http.Client{},
+		token:      "test-token",
+		tokenExp:   time.Now().Add(1 * time.Hour),
+		tenantID:   "tenant",
+		clientID:   "client",
+		baseURL:    server.URL,
 	}
 
 	err := client.DeleteTXTRecord(context.Background(), "sub", "rg", "zone", "test", "delete-this")
@@ -345,11 +351,12 @@ func TestClientCreateTXTRecordMerge(t *testing.T) {
 	defer server.Close()
 
 	client := &Client{
-		token:    "test-token",
-		tokenExp: time.Now().Add(1 * time.Hour),
-		tenantID: "tenant",
-		clientID: "client",
-		baseURL:  server.URL,
+		httpClient: &http.Client{},
+		token:      "test-token",
+		tokenExp:   time.Now().Add(1 * time.Hour),
+		tenantID:   "tenant",
+		clientID:   "client",
+		baseURL:    server.URL,
 	}
 
 	resp, err := client.CreateTXTRecord(context.Background(), "sub", "rg", "zone", "test", "new-value", 120)

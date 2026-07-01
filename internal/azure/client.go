@@ -23,14 +23,15 @@ import (
 )
 
 type Client struct {
-	token    string
-	tokenExp time.Time
-	tenantID string
-	clientID string
-	secret   string
-	certPath string
-	certPass string
-	baseURL  string
+	httpClient *http.Client
+	token      string
+	tokenExp   time.Time
+	tenantID   string
+	clientID   string
+	secret     string
+	certPath   string
+	certPass   string
+	baseURL    string
 }
 
 type RecordSetResponse struct {
@@ -59,13 +60,19 @@ type RecordSetResp struct {
 }
 
 func NewClient(ctx context.Context, cfg Config) (*Client, error) {
+	baseURL := "https://management.azure.com"
+	if cfg.BaseURL != "" {
+		baseURL = cfg.BaseURL
+	}
+
 	client := &Client{
-		tenantID: cfg.TenantID,
-		clientID: cfg.ClientID,
-		secret:   cfg.ClientSecret,
-		certPath: cfg.ClientCertPath,
-		certPass: cfg.ClientCertPassword,
-		baseURL:  "https://management.azure.com",
+		httpClient: &http.Client{Timeout: 30 * time.Second},
+		tenantID:   cfg.TenantID,
+		clientID:   cfg.ClientID,
+		secret:     cfg.ClientSecret,
+		certPath:   cfg.ClientCertPath,
+		certPass:   cfg.ClientCertPassword,
+		baseURL:    baseURL,
 	}
 
 	if err := client.refreshToken(ctx); err != nil {
@@ -77,6 +84,9 @@ func NewClient(ctx context.Context, cfg Config) (*Client, error) {
 
 func (c *Client) refreshToken(ctx context.Context) error {
 	tokenURL := fmt.Sprintf("https://login.microsoftonline.com/%s/oauth2/v2.0/token", c.tenantID)
+	if c.baseURL != "https://management.azure.com" {
+		tokenURL = fmt.Sprintf("%s/%s/oauth2/v2.0/token", c.baseURL, c.tenantID)
+	}
 
 	var data url.Values
 	if c.secret != "" {
@@ -108,7 +118,7 @@ func (c *Client) refreshToken(ctx context.Context) error {
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return err
 	}
@@ -278,8 +288,8 @@ func (c *Client) CreateTXTRecord(ctx context.Context, subscriptionID, resourceGr
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	url := fmt.Sprintf("%s/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/dnszones/%s/TXT/%s?api-version=2018-05-01", c.baseURL, subscriptionID, resourceGroup, zoneName, recordName)
-	req, err := http.NewRequestWithContext(ctx, "PUT", url, bytes.NewReader(body))
+	endpoint := fmt.Sprintf("%s/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/dnszones/%s/TXT/%s?api-version=2018-05-01", c.baseURL, subscriptionID, resourceGroup, zoneName, recordName)
+	req, err := http.NewRequestWithContext(ctx, "PUT", endpoint, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -287,7 +297,7 @@ func (c *Client) CreateTXTRecord(ctx context.Context, subscriptionID, resourceGr
 	req.Header.Set("Authorization", "Bearer "+c.token)
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
@@ -315,15 +325,15 @@ func (c *Client) ListTXTRecords(ctx context.Context, subscriptionID, resourceGro
 		return nil, err
 	}
 
-	url := fmt.Sprintf("%s/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/dnszones/%s/TXT/%s?api-version=2018-05-01", c.baseURL, subscriptionID, resourceGroup, zoneName, recordName)
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	endpoint := fmt.Sprintf("%s/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/dnszones/%s/TXT/%s?api-version=2018-05-01", c.baseURL, subscriptionID, resourceGroup, zoneName, recordName)
+	req, err := http.NewRequestWithContext(ctx, "GET", endpoint, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
 	req.Header.Set("Authorization", "Bearer "+c.token)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
@@ -357,13 +367,9 @@ func (c *Client) DeleteTXTRecord(ctx context.Context, subscriptionID, resourceGr
 		return err
 	}
 
-	// Get existing values
+	// Get existing values (ListTXTRecords returns empty slice on 404)
 	existing, err := c.ListTXTRecords(ctx, subscriptionID, resourceGroup, zoneName, recordName)
 	if err != nil {
-		// 404 is OK - record doesn't exist
-		if strings.Contains(err.Error(), "404") {
-			return nil
-		}
 		return err
 	}
 
@@ -377,15 +383,15 @@ func (c *Client) DeleteTXTRecord(ctx context.Context, subscriptionID, resourceGr
 
 	// If no values left, delete the entire recordset
 	if len(remaining) == 0 {
-		url := fmt.Sprintf("%s/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/dnszones/%s/TXT/%s?api-version=2018-05-01", c.baseURL, subscriptionID, resourceGroup, zoneName, recordName)
-		req, err := http.NewRequestWithContext(ctx, "DELETE", url, nil)
+		endpoint := fmt.Sprintf("%s/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/dnszones/%s/TXT/%s?api-version=2018-05-01", c.baseURL, subscriptionID, resourceGroup, zoneName, recordName)
+		req, err := http.NewRequestWithContext(ctx, "DELETE", endpoint, nil)
 		if err != nil {
 			return fmt.Errorf("failed to create request: %w", err)
 		}
 
 		req.Header.Set("Authorization", "Bearer "+c.token)
 
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := c.httpClient.Do(req)
 		if err != nil {
 			return fmt.Errorf("request failed: %w", err)
 		}
@@ -421,8 +427,8 @@ func (c *Client) DeleteTXTRecord(ctx context.Context, subscriptionID, resourceGr
 		return fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	url := fmt.Sprintf("%s/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/dnszones/%s/TXT/%s?api-version=2018-05-01", c.baseURL, subscriptionID, resourceGroup, zoneName, recordName)
-	req, err := http.NewRequestWithContext(ctx, "PUT", url, bytes.NewReader(body))
+	endpoint := fmt.Sprintf("%s/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/dnszones/%s/TXT/%s?api-version=2018-05-01", c.baseURL, subscriptionID, resourceGroup, zoneName, recordName)
+	req, err := http.NewRequestWithContext(ctx, "PUT", endpoint, bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
@@ -430,7 +436,7 @@ func (c *Client) DeleteTXTRecord(ctx context.Context, subscriptionID, resourceGr
 	req.Header.Set("Authorization", "Bearer "+c.token)
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("request failed: %w", err)
 	}
