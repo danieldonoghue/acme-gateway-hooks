@@ -10,6 +10,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"io"
 	"net/http"
@@ -159,11 +160,16 @@ func (c *Client) createJWT() (string, error) {
 		}
 	}
 
-	// If PKCS12 didn't work or wasn't tried, try PEM-encoded keys
+	// If PKCS12 didn't work or wasn't tried, try PEM then raw DER
 	if privateKey == nil {
-		priv, err := x509.ParsePKCS8PrivateKey(certData)
+		derBytes := certData
+		if block, _ := pem.Decode(certData); block != nil {
+			derBytes = block.Bytes
+		}
+
+		priv, err := x509.ParsePKCS8PrivateKey(derBytes)
 		if err != nil {
-			priv, err = x509.ParsePKCS1PrivateKey(certData)
+			priv, err = x509.ParsePKCS1PrivateKey(derBytes)
 			if err != nil {
 				return "", fmt.Errorf("failed to parse private key (tried PKCS12, PKCS8, PKCS1): %w", err)
 			}
@@ -243,11 +249,10 @@ func (c *Client) CreateTXTRecord(ctx context.Context, subscriptionID, resourceGr
 		values = append(values, v)
 	}
 
-	// Create TXT records array
+	// Create TXT records array — each value is a separate TXT RR
 	var txtRecords []TXTRecord
-	if len(values) > 0 {
-		// Group all values into one record (Azure TXT records contain arrays of strings)
-		txtRecords = []TXTRecord{{Value: values}}
+	for _, v := range values {
+		txtRecords = append(txtRecords, TXTRecord{Value: []string{v}})
 	}
 
 	payload := RecordSetPayload{
@@ -330,7 +335,7 @@ func (c *Client) ListTXTRecords(ctx context.Context, subscriptionID, resourceGro
 
 	var values []string
 	for _, txtRec := range respData.Properties.TxtRecords {
-		values = append(values, txtRec.Value...)
+		values = append(values, strings.Join(txtRec.Value, ""))
 	}
 
 	return values, nil
@@ -388,10 +393,15 @@ func (c *Client) DeleteTXTRecord(ctx context.Context, subscriptionID, resourceGr
 	}
 
 	// Otherwise, update the recordset with remaining values
+	var remainingRecords []TXTRecord
+	for _, v := range remaining {
+		remainingRecords = append(remainingRecords, TXTRecord{Value: []string{v}})
+	}
+
 	payload := RecordSetPayload{
 		Properties: RecordSetProperties{
 			TTL:        120,
-			TxtRecords: []TXTRecord{{Value: remaining}},
+			TxtRecords: remainingRecords,
 		},
 	}
 

@@ -161,21 +161,21 @@ func TestGetRecordsAcceptsDNSArrayFromEndpoint(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_ = r.Body.Close()
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"code":1000,"message":"ok","dns":[{"domainname":"aurorateleq.com","records":[{"recordid":19742549,"name":"_acme-challenge.dpd-test","type":"TXT","content":"challenge"}]}]}`))
+		_, _ = w.Write([]byte(`{"code":1000,"message":"ok","dns":[{"domainname":"example.com","records":[{"recordid":19742549,"name":"_acme-challenge.sub","type":"TXT","content":"challenge"}]}]}`))
 	}))
 	defer srv.Close()
 
 	client := NewClient(srv.URL, "token")
-	resp, err := client.GetRecords(context.Background(), "session", "aurorateleq.com")
+	resp, err := client.GetRecords(context.Background(), "session", "example.com")
 	if err != nil {
 		t.Fatalf("expected success with dns array payload, got: %v", err)
 	}
 	if resp.Code != 1000 {
 		t.Fatalf("unexpected code: %d", resp.Code)
 	}
-	block, ok := resp.DNS["aurorateleq.com"]
+	block, ok := resp.DNS["example.com"]
 	if !ok {
-		t.Fatalf("expected aurorateleq.com block in parsed dns payload")
+		t.Fatalf("expected example.com block in parsed dns payload")
 	}
 	if len(block.Records) != 1 {
 		t.Fatalf("unexpected record count: %d", len(block.Records))
@@ -189,18 +189,18 @@ func TestGetRecordsAcceptsDNSObjectWithRecordArrayValues(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_ = r.Body.Close()
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"code":1000,"message":"ok","dns":{"aurorateleq.com":[{"recordid":19742549,"name":"_acme-challenge.dpd-test","type":"TXT","content":"challenge"}]}}`))
+		_, _ = w.Write([]byte(`{"code":1000,"message":"ok","dns":{"example.com":[{"recordid":19742549,"name":"_acme-challenge.sub","type":"TXT","content":"challenge"}]}}`))
 	}))
 	defer srv.Close()
 
 	client := NewClient(srv.URL, "token")
-	resp, err := client.GetRecords(context.Background(), "session", "aurorateleq.com")
+	resp, err := client.GetRecords(context.Background(), "session", "example.com")
 	if err != nil {
 		t.Fatalf("expected success with dns object/array payload, got: %v", err)
 	}
-	block, ok := resp.DNS["aurorateleq.com"]
+	block, ok := resp.DNS["example.com"]
 	if !ok {
-		t.Fatalf("expected aurorateleq.com block in parsed dns payload")
+		t.Fatalf("expected example.com block in parsed dns payload")
 	}
 	if len(block.Records) != 1 {
 		t.Fatalf("unexpected record count: %d", len(block.Records))
@@ -214,18 +214,18 @@ func TestGetRecordsAcceptsDNSObjectWithRecordsMapValues(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_ = r.Body.Close()
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"code":1000,"message":"ok","dns":{"aurorateleq.com":{"records":{"19742550":{"name":"_acme-challenge.dpd-test","type":"TXT","content":"challenge"}}}}}`))
+		_, _ = w.Write([]byte(`{"code":1000,"message":"ok","dns":{"example.com":{"records":{"19742550":{"name":"_acme-challenge.sub","type":"TXT","content":"challenge"}}}}}`))
 	}))
 	defer srv.Close()
 
 	client := NewClient(srv.URL, "token")
-	resp, err := client.GetRecords(context.Background(), "session", "aurorateleq.com")
+	resp, err := client.GetRecords(context.Background(), "session", "example.com")
 	if err != nil {
 		t.Fatalf("expected success with dns object/records-map payload, got: %v", err)
 	}
-	block, ok := resp.DNS["aurorateleq.com"]
+	block, ok := resp.DNS["example.com"]
 	if !ok {
-		t.Fatalf("expected aurorateleq.com block in parsed dns payload")
+		t.Fatalf("expected example.com block in parsed dns payload")
 	}
 	if len(block.Records) != 1 {
 		t.Fatalf("unexpected record count: %d", len(block.Records))

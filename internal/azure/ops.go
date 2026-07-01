@@ -53,10 +53,10 @@ func Cleanup(ctx context.Context, logger *slog.Logger, client ClientInterface, c
 		return nil
 	}
 
-	for _, recordID := range matched {
-		if err := client.DeleteTXTRecord(ctx, cfg.SubscriptionID, cfg.ResourceGroup, cfg.ZoneName, recordName, recordID); err != nil {
+	for _, txtValue := range matched {
+		if err := client.DeleteTXTRecord(ctx, cfg.SubscriptionID, cfg.ResourceGroup, cfg.ZoneName, recordName, txtValue); err != nil {
 			logger.Warn("delete record request failed; continuing",
-				"record_id", recordID,
+				"value", txtValue,
 				"error", err.Error(),
 			)
 			continue

@@ -1,94 +1,12 @@
 package integration
 
 import (
-	"encoding/json"
-	"fmt"
-	"net/http"
 	"strings"
 	"testing"
 
 	"github.com/danieldonoghue/acme-gateway-hooks/internal/azure"
 	"github.com/danieldonoghue/acme-gateway-hooks/internal/env"
 )
-
-type fakeAzure struct {
-	records map[string]map[string]interface{}
-	token   string
-}
-
-func newFakeAzure() *fakeAzure {
-	return &fakeAzure{
-		records: make(map[string]map[string]interface{}),
-		token:   "fake-azure-token",
-	}
-}
-
-func (f *fakeAzure) handler() http.Handler {
-	mux := http.NewServeMux()
-
-	// Token endpoint
-	mux.HandleFunc("/12345678-abcd-1234-abcd-1234567890ab/oauth2/v2.0/token", func(w http.ResponseWriter, r *http.Request) {
-		_ = r.ParseForm()
-		grantType := r.Form.Get("grant_type")
-		if grantType != "client_credentials" {
-			http.Error(w, "invalid grant type", http.StatusBadRequest)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"access_token": f.token,
-			"expires_in":   3600,
-			"token_type":   "Bearer",
-		})
-	})
-
-	// DNS record operations
-	mux.HandleFunc("/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.Network/dnszones/test.example.com/TXT/", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-
-		// Extract record name from path
-		parts := strings.Split(strings.TrimSuffix(r.URL.Path, "/"), "/")
-		recordName := parts[len(parts)-1]
-
-		switch r.Method {
-		case "PUT":
-			var payload azure.RecordSetPayload
-			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-				http.Error(w, "invalid payload", http.StatusBadRequest)
-				return
-			}
-
-			f.records[recordName] = map[string]interface{}{
-				"id":         fmt.Sprintf("/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.Network/dnszones/test.example.com/TXT/%s", recordName),
-				"name":       recordName,
-				"properties": payload.Properties,
-			}
-
-			w.WriteHeader(http.StatusOK)
-			json.NewEncoder(w).Encode(f.records[recordName])
-
-		case "GET":
-			rec, ok := f.records[recordName]
-			if !ok {
-				http.Error(w, "not found", http.StatusNotFound)
-				return
-			}
-
-			w.WriteHeader(http.StatusOK)
-			json.NewEncoder(w).Encode(rec)
-
-		case "DELETE":
-			delete(f.records, recordName)
-			w.WriteHeader(http.StatusOK)
-
-		default:
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		}
-	})
-
-	return mux
-}
 
 func TestAzureConfigValidation(t *testing.T) {
 	cfg := azure.Config{

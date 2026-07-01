@@ -43,7 +43,7 @@ Excedo variables:
 Azure DNS variables:
 - Required `AZURE_SUBSCRIPTION_ID`
 - Required `AZURE_RESOURCE_GROUP`
-- Required `AZURE_ZONE_NAME` (the delegated DNS zone, e.g., `challenges.aurorateleq.com`)
+- Required `AZURE_ZONE_NAME` (the delegated DNS zone, e.g., `challenges.example.com`)
 - Required `AZURE_TENANT_ID`
 - Required `AZURE_CLIENT_ID`
 - **Exactly one** of:
@@ -160,7 +160,7 @@ make test
 - Integration coverage includes:
   - Excedo deploy/cleanup idempotency against a local fake Excedo API server.
   - BIND deploy/cleanup idempotency against a local in-process UDP DNS update responder.
-  - Azure DNS deploy/cleanup idempotency against Azure (requires valid credentials; uses a test zone).
+  - Azure DNS config validation, record-name helpers, and client operations against a local httptest fake.
 
 ## Contributing New Providers
 

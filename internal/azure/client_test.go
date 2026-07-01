@@ -90,7 +90,8 @@ func TestClientListTXTRecords(t *testing.T) {
 				Properties: RecordSetProperties{
 					TTL: 120,
 					TxtRecords: []TXTRecord{
-						{Value: []string{"value1", "value2"}},
+						{Value: []string{"value1"}},
+						{Value: []string{"value2"}},
 					},
 				},
 			})
