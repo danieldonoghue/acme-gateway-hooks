@@ -10,6 +10,9 @@ Standalone DNS hook toolkit for `acme-gateway` DNS-01 integrations.
 - Excedo
   - `excedo-dns-deploy`
   - `excedo-dns-cleanup`
+- Azure DNS
+  - `azure-dns-deploy`
+  - `azure-dns-cleanup`
 
 ## Environment Contract
 
@@ -36,6 +39,18 @@ Excedo variables:
   - `EXCEDO_ZONE` (compatibility alias)
   - `EXCEDO_DOMAINNAME` (compatibility alias)
   - `ACME_GATEWAY_DNS_ZONE` (shared gateway alias)
+
+Azure DNS variables:
+- Required `AZURE_SUBSCRIPTION_ID`
+- Required `AZURE_RESOURCE_GROUP`
+- Required `AZURE_ZONE_NAME` (the delegated DNS zone, e.g., `challenges.example.com`)
+- Optional `AZURE_TENANT_ID` (auto-discovered from subscription if not set)
+- Required `AZURE_CLIENT_ID`
+- **Exactly one** of:
+  - `AZURE_CLIENT_SECRET` (service principal secret)
+  - `AZURE_CLIENT_CERTIFICATE_PATH` (path to PKCS12/PFX bundle or PEM/DER private key)
+- Optional `AZURE_CLIENT_CERTIFICATE_PASSWORD` (PKCS12 decryption password; not applicable to PEM keys)
+- Optional `AZURE_BASE_URL` (override ARM management **and** token endpoints; intended for testing)
 
 ## Local Usage
 
@@ -72,6 +87,41 @@ export EXCEDO_DNS_ZONE="example.com"
 ./dist/bin-local/excedo-dns-cleanup
 ```
 
+### Azure DNS
+
+```bash
+# Service principal with secret
+export AZURE_TENANT_ID="<tenant-id>"
+export AZURE_CLIENT_ID="<client-id>"
+export AZURE_CLIENT_SECRET="<secret>"
+export AZURE_SUBSCRIPTION_ID="<subscription-id>"
+export AZURE_RESOURCE_GROUP="dns-resources"
+export AZURE_ZONE_NAME="challenges.example.com"
+export CERTBOT_DOMAIN="app.example.com"
+export CERTBOT_VALIDATION="challenge-value"
+
+./dist/bin-local/azure-dns-deploy
+./dist/bin-local/azure-dns-cleanup
+```
+
+Or with certificate:
+
+```bash
+# Service principal with certificate
+export AZURE_TENANT_ID="<tenant-id>"
+export AZURE_CLIENT_ID="<client-id>"
+export AZURE_CLIENT_CERTIFICATE_PATH="/path/to/cert.pfx"
+export AZURE_CLIENT_CERTIFICATE_PASSWORD="cert-password"  # optional
+export AZURE_SUBSCRIPTION_ID="<subscription-id>"
+export AZURE_RESOURCE_GROUP="dns-resources"
+export AZURE_ZONE_NAME="challenges.example.com"
+export CERTBOT_DOMAIN="app.example.com"
+export CERTBOT_VALIDATION="challenge-value"
+
+./dist/bin-local/azure-dns-deploy
+./dist/bin-local/azure-dns-cleanup
+```
+
 Build release (linux/amd64 and linux/arm64) binaries:
 
 ```bash
@@ -83,16 +133,22 @@ Local build output:
 - `dist/bin-local/bind-dns-cleanup`
 - `dist/bin-local/excedo-dns-deploy`
 - `dist/bin-local/excedo-dns-cleanup`
+- `dist/bin-local/azure-dns-deploy`
+- `dist/bin-local/azure-dns-cleanup`
 
 Build output:
 - `dist/bin/amd64/bind-dns-deploy`
 - `dist/bin/amd64/bind-dns-cleanup`
 - `dist/bin/amd64/excedo-dns-deploy`
 - `dist/bin/amd64/excedo-dns-cleanup`
+- `dist/bin/amd64/azure-dns-deploy`
+- `dist/bin/amd64/azure-dns-cleanup`
 - `dist/bin/arm64/bind-dns-deploy`
 - `dist/bin/arm64/bind-dns-cleanup`
 - `dist/bin/arm64/excedo-dns-deploy`
 - `dist/bin/arm64/excedo-dns-cleanup`
+- `dist/bin/arm64/azure-dns-deploy`
+- `dist/bin/arm64/azure-dns-cleanup`
 
 ## Testing
 
@@ -105,6 +161,7 @@ make test
 - Integration coverage includes:
   - Excedo deploy/cleanup idempotency against a local fake Excedo API server.
   - BIND deploy/cleanup idempotency against a local in-process UDP DNS update responder.
+  - Azure DNS config validation, record-name helpers, and client operations against a local httptest fake.
 
 ## Contributing New Providers
 
@@ -154,12 +211,17 @@ dns_hook:
   # Or Excedo
   # deploy_script: "/hooks/excedo-dns-deploy"
   # cleanup_script: "/hooks/excedo-dns-cleanup"
+
+  # Or Azure DNS
+  # deploy_script: "/hooks/azure-dns-deploy"
+  # cleanup_script: "/hooks/azure-dns-cleanup"
 ```
 
 ## Versioning
 
 - SemVer tags are published as `ghcr.io/danieldonoghue/acme-gateway-hooks:vX.Y.Z`.
 - `latest` tracks the newest released SemVer tag.
+- Versions are pinned to the minimum acme-gateway version required to support these hooks.
 
 ## Security Notes
 

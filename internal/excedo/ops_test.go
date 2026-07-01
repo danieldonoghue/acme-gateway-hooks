@@ -38,12 +38,12 @@ func TestRelativeRecordName(t *testing.T) {
 }
 
 func TestResolveZoneAndRecordUsesConfiguredZone(t *testing.T) {
-	zone, recName, err := resolveZoneAndRecord(context.Background(), nil, "", "_acme-challenge.dpd-test.aurorateleq.com", "dpd-test.aurorateleq.com")
+	zone, recName, err := resolveZoneAndRecord(context.Background(), nil, "", "_acme-challenge.dpd-test.example.com", "dpd-test.example.com")
 	if err != nil {
 		t.Fatalf("resolveZoneAndRecord() error = %v", err)
 	}
-	if zone != "dpd-test.aurorateleq.com" {
-		t.Fatalf("zone = %q, want dpd-test.aurorateleq.com", zone)
+	if zone != "dpd-test.example.com" {
+		t.Fatalf("zone = %q, want dpd-test.example.com", zone)
 	}
 	if recName != "_acme-challenge" {
 		t.Fatalf("record name = %q, want _acme-challenge", recName)
@@ -72,7 +72,7 @@ func TestFindMatchingRecords(t *testing.T) {
 func TestFindMatchingRecordsNormalizesQuotedTXTContent(t *testing.T) {
 	resp := &GetRecordsResponse{
 		DNS: map[string]DomainBlock{
-			"aurorateleq.com": {
+			"example.com": {
 				Records: []DNSRecord{
 					{RecordID: "19742550", Name: "_acme-challenge.dpd-test", Type: "TXT", Content: `"challenge"`},
 				},
@@ -80,7 +80,7 @@ func TestFindMatchingRecordsNormalizesQuotedTXTContent(t *testing.T) {
 		},
 	}
 
-	ids := findMatchingRecords(resp, "_acme-challenge.dpd-test.aurorateleq.com", "_acme-challenge.dpd-test", "challenge")
+	ids := findMatchingRecords(resp, "_acme-challenge.dpd-test.example.com", "_acme-challenge.dpd-test", "challenge")
 	if len(ids) != 1 {
 		t.Fatalf("matched records = %d, want 1", len(ids))
 	}
@@ -211,8 +211,8 @@ func TestDeployWithConfiguredZoneBypassesZoneDiscovery(t *testing.T) {
 			if err := r.ParseForm(); err != nil {
 				t.Fatalf("ParseForm() error = %v", err)
 			}
-			if got := r.Form.Get("domainname"); got != "dpd-test.aurorateleq.com" {
-				t.Fatalf("domainname = %q, want dpd-test.aurorateleq.com", got)
+			if got := r.Form.Get("domainname"); got != "dpd-test.example.com" {
+				t.Fatalf("domainname = %q, want dpd-test.example.com", got)
 			}
 			if got := r.Form.Get("name"); got != "_acme-challenge" {
 				t.Fatalf("name = %q, want _acme-challenge", got)
@@ -230,8 +230,8 @@ func TestDeployWithConfiguredZoneBypassesZoneDiscovery(t *testing.T) {
 	client.backoff = 1 * time.Millisecond
 
 	cfg := Config{
-		CommonConfig: env.CommonConfig{Domain: "dpd-test.aurorateleq.com", Validation: "txt", FQDN: "_acme-challenge.dpd-test.aurorateleq.com"},
-		DNSZone:      "dpd-test.aurorateleq.com",
+		CommonConfig: env.CommonConfig{Domain: "dpd-test.example.com", Validation: "txt", FQDN: "_acme-challenge.dpd-test.example.com"},
+		DNSZone:      "dpd-test.example.com",
 	}
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 
@@ -262,7 +262,7 @@ func TestResolveZoneAndRecordWithoutConfiguredZoneFailsWhenNoZonesMatch(t *testi
 	client.maxRetries = 0
 	client.backoff = 1 * time.Millisecond
 
-	_, _, err := resolveZoneAndRecord(context.Background(), client, "session", "_acme-challenge.dpd-test.aurorateleq.com", "")
+	_, _, err := resolveZoneAndRecord(context.Background(), client, "session", "_acme-challenge.dpd-test.example.com", "")
 	if err == nil {
 		t.Fatalf("expected resolveZoneAndRecord() error")
 	}
