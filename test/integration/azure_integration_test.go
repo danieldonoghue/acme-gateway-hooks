@@ -3,6 +3,7 @@ package integration
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -143,7 +144,7 @@ func TestAzureDeployAndCleanupIdempotent(t *testing.T) {
 		t.Fatalf("NewClient: %v", err)
 	}
 
-	logger := slog.Default()
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 
 	// Deploy
 	err = azure.Deploy(ctx, logger, client, cfg)
