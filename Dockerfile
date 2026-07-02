@@ -13,6 +13,8 @@ COPY . .
 RUN --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/bind-dns-deploy ./cmd/bind-dns-deploy && \
     CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/bind-dns-cleanup ./cmd/bind-dns-cleanup && \
+    CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/azure-dns-deploy ./cmd/azure-dns-deploy && \
+    CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/azure-dns-cleanup ./cmd/azure-dns-cleanup && \
     CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/excedo-dns-deploy ./cmd/excedo-dns-deploy && \
     CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/excedo-dns-cleanup ./cmd/excedo-dns-cleanup
 
@@ -26,6 +28,8 @@ RUN mkdir -p /toolbox/bin && \
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=builder --chmod=0555 /out/bind-dns-deploy /usr/local/bin/bind-dns-deploy
 COPY --from=builder --chmod=0555 /out/bind-dns-cleanup /usr/local/bin/bind-dns-cleanup
+COPY --from=builder --chmod=0555 /out/azure-dns-deploy /usr/local/bin/azure-dns-deploy
+COPY --from=builder --chmod=0555 /out/azure-dns-cleanup /usr/local/bin/azure-dns-cleanup
 COPY --from=builder --chmod=0555 /out/excedo-dns-deploy /usr/local/bin/excedo-dns-deploy
 COPY --from=builder --chmod=0555 /out/excedo-dns-cleanup /usr/local/bin/excedo-dns-cleanup
 COPY --from=toolbox --chmod=0555 /toolbox/bin /bin
